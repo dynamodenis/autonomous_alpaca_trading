@@ -1,0 +1,10 @@
+# .gitignore
+__pycache__/
+*.pyc
+.venv/
+*.db  # Important: Exclude database files like George.db, Warren.db, accounts.db
+*.txt # Exclude temporary files
+/memory/ # Exclude the entire memory directory if it's large/temporary
+accounts.db
+memory/
+community_contributions/
