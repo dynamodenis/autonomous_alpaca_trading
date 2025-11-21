@@ -1,5 +1,5 @@
 ---
-title: Trading floor
+title: Alpaca Trading floor
 emoji: 🚀
 colorFrom: red
 colorTo: indigo
