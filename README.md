@@ -1,3 +1,14 @@
+---
+title: Trading floor
+emoji: 🚀
+colorFrom: red
+colorTo: indigo
+sdk: gradio
+sdk_version: 5.49.1
+app_file: app.py
+pinned: false
+---
+
 # 🤖 AI Trading Floor
 
 An autonomous multi-agent trading simulation where AI traders powered by different language models compete in the stock market. Watch as each AI develops its own trading strategy and makes real-time decisions!
