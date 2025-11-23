@@ -64,7 +64,6 @@ async def run_every_n_minutes():
     loop.call_later(1, stop_callback)
 
     while not async_stop_event.is_set():
-        print(f"market {alpaca_is_market_open()}")
         if RUN_EVEN_WHEN_MARKET_IS_CLOSED or alpaca_is_market_open():
             print("Running trade cycle...")
             # Run agents

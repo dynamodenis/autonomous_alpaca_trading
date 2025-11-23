@@ -5,13 +5,13 @@ from datetime import datetime
 from market import get_share_price
 from database import write_account, read_account, write_log
 from util import client
+from reset import strategy_mapper
 
 load_dotenv(override=True)
 
 INITIAL_BALANCE = 10_000.0
 SPREAD = 0.002
-
-
+    
 class Transaction(BaseModel):
     symbol: str
     quantity: int
@@ -42,13 +42,12 @@ class Account(BaseModel):
             getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
         )
         fields = read_account(name.lower())
-        if not fields or fields['balance'] != portfolio_val:
-            print(f"found fields of account {fields}")
+        if not fields or fields["balance"] != portfolio_val:
 
             fields = {
                 "name": name.lower(),
                 "balance": float(portfolio_val),
-                "strategy": "",
+                "strategy": strategy_mapper(name.lower()),
                 "holdings": {},
                 "transactions": [],
                 "portfolio_value_time_series": [],

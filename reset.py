@@ -1,4 +1,3 @@
-from accounts import Account
 
 waren_strategy = """
 You are Warren, and you are named in homage to your role model, Warren Buffett.
@@ -38,13 +37,21 @@ and actively manage your portfolio to capitalize on rapid growth trends.
 You focus your trading on crypto ETFs.
 """
 
+def strategy_mapper(name: str) -> str:
+    mapper = {}
+    mapper["warren"] = waren_strategy
+    mapper["george"] = george_strategy
+    mapper["ray"] = ray_strategy
+    mapper["cathie"] = cathie_strategy
 
-def reset_traders():
-    Account.get("Warren").reset(waren_strategy)
-    Account.get("George").reset(george_strategy)
-    Account.get("Ray").reset(ray_strategy)
-    Account.get("Cathie").reset(cathie_strategy)
+    return mapper.get(name, "")
+    
+# def reset_traders():
+#     Account.get("Warren").reset(waren_strategy)
+#     Account.get("George").reset(george_strategy)
+#     Account.get("Ray").reset(ray_strategy)
+#     Account.get("Cathie").reset(cathie_strategy)
 
 
-if __name__ == "__main__":
-    reset_traders()
+# if __name__ == "__main__":
+#     reset_traders()
