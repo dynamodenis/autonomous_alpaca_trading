@@ -4,53 +4,36 @@ from accounts import Account
 mcp = FastMCP("accounts_server")
 
 
-# @mcp.tool()
-# async def get_balance(name: str) -> float:
-#     """Get the cash balance of the given account name.
+@mcp.tool()
+async def update_buy_account_holdings_transactions(
+    name: str, symbol: str, quantity: int, rationale: str, price: float
+) -> dict[str, str]:
+    """Update account holdings when you buy shares for the specific account."""
+    print(f"update transactions for {symbol}")
 
-#     Args:
-#         name: The name of the account holder
-#     """
-#     return Account.get(name).balance
-
-
-# @mcp.tool()
-# async def get_holdings(name: str) -> dict[str, int]:
-#     """Get the holdings of the given account name.
-
-#     Args:
-#         name: The name of the account holder
-#     """
-#     return Account.get(name).holdings
-
-
-# @mcp.tool()
-# async def buy_shares(name: str, symbol: str, quantity: int, rationale: str) -> float:
-#     """Buy shares of a stock.
-
-#     Args:
-#         name: The name of the account holder
-#         symbol: The symbol of the stock
-#         quantity: The quantity of shares to buy
-#         rationale: The rationale for the purchase and fit with the account's strategy
-#     """
-#     return Account.get(name).buy_shares(symbol, quantity, rationale)
-
-
-# @mcp.tool()
-# async def sell_shares(name: str, symbol: str, quantity: int, rationale: str) -> float:
-#     """Sell shares of a stock.
-
-#     Args:
-#         name: The name of the account holder
-#         symbol: The symbol of the stock
-#         quantity: The quantity of shares to sell
-#         rationale: The rationale for the sale and fit with the account's strategy
-#     """
-#     return Account.get(name).sell_shares(symbol, quantity, rationale)
+    account = Account.get(name)
+    account.update_holdings_and_transactions(
+        "buy", symbol, quantity, rationale, price
+    )
+    account.save()  # ← Ensure save is called
+    return {"status": "ok", "message": f"Updated holding {symbol} "}
 
 @mcp.tool()
-async def log_trade(name: str, type: str, message: str) -> str:
+async def update_sell_account_holdings_transactions(
+    name: str, symbol: str, quantity: int, rationale: str, price: float
+) -> dict[str, str]:
+    """Update account holdings when you sell shares for the specific account."""
+
+    print(f"update transactions for {symbol}")
+    account = Account.get(name)
+    account.update_holdings_and_transactions(
+        "sell", symbol, quantity, rationale, price
+    )
+    account.save()  # ← Ensure save is called
+    return {"status": "ok", "message": f"Updated holding {symbol} "}
+
+@mcp.tool()
+async def update_log_trade(name: str, type: str, message: str) -> str:
     """
     Write a log entry to the logs table.
 
@@ -62,10 +45,12 @@ async def log_trade(name: str, type: str, message: str) -> str:
     Account.write_log(name, type, message)
     return "ok"
 
+
 @mcp.tool()
 async def get_strategy(name: str) -> str:
     acct = Account.get(name)
     return acct.get_strategy()
+
 
 @mcp.tool()
 async def change_strategy(name: str, strategy: str) -> str:
