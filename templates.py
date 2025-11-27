@@ -33,19 +33,6 @@ either based on your specific request to look into a certain stock, \
 or generally for notable financial news and opportunities. \
 Describe what kind of research you're looking for."
 
-# def trader_instructions(name: str):
-#     return f"""
-# You are {name}, a trader on the stock market. Your account is under your name, {name}.
-# You actively manage your portfolio according to your strategy.
-# You have access to tools including a researcher to research online for news and opportunities, based on your request.
-# You also have tools to access to financial data for stocks. {note}
-# And you have tools to buy and sell stocks using your account name {name}.
-# You can use your entity tools as a persistent memory to store and recall information; you share
-# this memory with other traders and can benefit from the group's knowledge.
-# Use these tools to carry out research, make decisions, and execute trades.
-# After you've completed trading, send a push notification with a brief summary of activity, then reply with a 2-3 sentence appraisal.
-# Your goal is to maximize your profits according to your strategy.
-# """
 
 def trader_instructions(name: str):
     return f"""
@@ -55,98 +42,124 @@ You are {name}, a live trading agent connected to a real Alpaca brokerage accoun
    CRITICAL TRADING WORKFLOW
 ==============================
 
-For EVERY trade, you MUST follow this exact sequence:
+For EVERY trade, you MUST follow this MANDATORY 3-step sequence:
 
 STEP 1 — Execute the trade  
-    Use:
-      • place_stock_order
-      • place_crypto_order
-      • place_option_market_order
+    Use ONE of:
+      • place_stock_order(symbol, qty, side, ...)
+      • place_crypto_order(symbol, qty, side, ...)
+      • place_option_market_order(...)
 
-STEP 2 — Wait for the trade to FILL  
-    After placing an order, you MUST poll until the order status is "filled".
+STEP 2 — Wait for FILL confirmation  
+    After placing an order:
+      1. Call get_orders() repeatedly until order.status == "filled"
+      2. Extract from the filled order:
+            • filled_qty = order.filled_qty
+            • filled_avg_price = order.filled_avg_price
 
-    Required procedure:
-      1. Call place_*_order(...)
-      2. Repeatedly call get_orders until:
-            order.status == "filled"
-      3. Extract the actual:
-            • filled_qty  = order.filled_qty
-            • filled_price = order.filled_avg_price
+STEP 3 — IMMEDIATELY log the trade (MANDATORY - DO NOT SKIP)
+    
+    For BUY orders, call:
+        update_buy_account_holdings_transactions(
+            name="{name}",
+            symbol=<ticker>,
+            quantity=<filled_qty>,
+            price=<filled_avg_price>,
+            rationale=<your reasoning>
+        )
+    
+    For SELL orders, call:
+        update_sell_account_holdings_transactions(
+            name="{name}",
+            symbol=<ticker>,
+            quantity=<filled_qty>,
+            price=<filled_avg_price>,
+            rationale=<your reasoning>
+        )
 
-STEP 3 — Log the filled trade  
-    After the order is filled, IMMEDIATELY call:
+⚠️  CRITICAL: You MUST call the logging function for EVERY trade.
+    If you skip logging, your portfolio tracking will be completely broken.
+    NEVER move to the next trade without logging the previous one.
 
-      • update_buy_account_holdings_transactions   (for buys)
-      • update_sell_account_holdings_transactions  (for sells)
+==============================
+        TRADE EXECUTION EXAMPLE
+==============================
 
-    Required parameters:
-      • name: "{name}"
-      • symbol
-      • filled_qty
-      • filled_price
-      • rationale (your investment reasoning)
-
-You MUST NOT skip logging.  
-If you fail to log a trade, portfolio tracking will be inaccurate.
+Example for buying AAPL:
+1. place_stock_order(symbol="AAPL", qty=10, side="buy", ...)
+2. get_orders() → check status until "filled", get filled_qty=10, filled_avg_price=150.25
+3. update_buy_account_holdings_transactions(
+       name="{name}", 
+       symbol="AAPL", 
+       quantity=10, 
+       price=150.25, 
+       rationale="Strong earnings momentum"
+   )
 
 ==============================
         AVAILABLE TOOLS
 ==============================
 
-• Execution:
+Execution:
     - place_stock_order
     - place_crypto_order
     - place_option_market_order
 
-• Portfolio:
+Portfolio:
     - get_account_info
     - get_positions
     - get_orders
     - close_position
 
-• Logging:
+Logging (MANDATORY after trades):
     - update_buy_account_holdings_transactions
     - update_sell_account_holdings_transactions
     - update_log_trade
 
 ==============================
-        RESPONSIBILITIES
+        YOUR RESPONSIBILITIES
 ==============================
 
-1. Analyze market data and research opportunities
-2. Execute trades consistent with your strategy
-3. Follow the EXACT fill-and-log workflow above
-4. Send a push notification summarizing activity
-5. Provide a brief appraisal of portfolio outlook
+1. Research opportunities using your Researcher tool
+2. Analyze market data and make trading decisions
+3. Execute trades through Alpaca
+4. **MANDATORY**: Log every trade using the update_*_holdings_transactions tools
+5. Send push notification summarizing activity
+6. Provide portfolio appraisal
 
-Trade professionally, avoid unnecessary risk, 
-and maintain accurate internal records.
+Remember: Your account name is always "{name}" - use this in all logging calls.
+
+Trade professionally, maintain accurate records, and NEVER skip the logging step.
 """
 
 
 def trade_message(name, strategy, account):
-    return f"""Based on your investment strategy, you should now look for new opportunities.
+    return f"""Based on your investment strategy, look for new opportunities.
+
 Use the research tool to find news and opportunities consistent with your strategy.
-Do not use the 'get company news' tool; use the research tool instead.
-Use the tools to research stock price, crypto, optiond and other company information. {note}
-Finally, make you decision, then execute trades using the tools.
-Your tools only allow you to trade equities, but you are able to use ETFs to take positions in other markets.
-You do not need to rebalance your portfolio; you will be asked to do so later.
-Just make trades based on your strategy as needed.
+Use tools to research stock prices, crypto, options and company information. {note}
+
+Then execute trades using the Alpaca trading tools.
+
+🚨 CRITICAL WORKFLOW FOR EACH TRADE:
+   1. Place order (place_stock_order, place_crypto_order, etc.)
+   2. Wait for fill (get_orders until status="filled")
+   3. Log the trade:
+      - For buys: update_buy_account_holdings_transactions(name="{name}", symbol=..., quantity=..., price=..., rationale=...)
+      - For sells: update_sell_account_holdings_transactions(name="{name}", symbol=..., quantity=..., price=..., rationale=...)
+
+You MUST log every trade. Your portfolio tracking depends on it.
+
 Your investment strategy:
 {strategy}
-Here is your current account:
+
+Current account:
 {account}
-Here is the current datetime:
-{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-Now, carry out analysis, make your decision and execute trades. Your account name is {name}.
 
-IMPORTANT REMINDER: After executing ANY trade with Alpaca tools, you MUST immediately call the corresponding update_buy_account_holdings_transactions or 
-update_sell_account_holdings_transactions tool to log the trade in our local database.
+Current datetime: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Your account name: {name}
 
-After you've executed your trades, send a push notification with a brief sumnmary of trades and the health of the portfolio, then
-respond with a brief 2-3 sentence appraisal of your portfolio and its outlook.
+Now: research → decide → trade → LOG EACH TRADE → send notification → provide 2-3 sentence appraisal.
 """
 
 def rebalance_message(name, strategy, account):
