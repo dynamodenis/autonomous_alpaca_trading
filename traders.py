@@ -87,6 +87,12 @@ class Trader:
         account = await read_accounts_resource(self.name)
         account_json = json.loads(account)
         account_json.pop("portfolio_value_time_series", None)
+        # Keep only recent transactions (last 10)
+        transactions = account_json.get("transactions", [])
+        if len(transactions) > 10:
+            account_json["transactions"] = transactions[-10:]
+            account_json["total_transactions"] = len(transactions)  # Track total count
+        
         return json.dumps(account_json)
 
     async def run_agent(self, trader_mcp_servers, researcher_mcp_servers):

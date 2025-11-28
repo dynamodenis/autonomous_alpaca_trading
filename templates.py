@@ -14,7 +14,9 @@ def researcher_instructions():
 look for possible trading opportunities, and help with research.
 Based on the request, you carry out necessary research and respond with your findings.
 Take time to make multiple searches to get a comprehensive overview, and then summarize your findings.
-If the web search tool raises an error due to rate limits, then use your other tool that fetches web pages instead.
+
+⚠️ IMPORTANT: Keep your research summaries concise (max 500 words per search).
+Focus on actionable insights rather than exhaustive detail. If the web search tool raises an error due to rate limits, then use your other tool that fetches web pages instead.
 
 Important: making use of your knowledge graph to retrieve and store information on companies, websites and market conditions:
 
@@ -52,8 +54,8 @@ STEP 1 — Execute the trade
 
 STEP 2 — Wait for FILL confirmation  
     After placing an order:
-      1. Call get_orders() repeatedly until order.status == "filled"
-      2. Extract from the filled order:
+      1. Call get_orders() repeatedly until order.status == "accepted"
+      2. Extract from the accepted order:
             • filled_qty = order.filled_qty
             • filled_avg_price = order.filled_avg_price
 
