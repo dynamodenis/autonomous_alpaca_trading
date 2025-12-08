@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from market import get_share_price
 from database import write_account, read_account, write_log
-from util import get_alpaca_client
+from util import client
 from reset import strategy_mapper
 
 load_dotenv(override=True)
@@ -39,7 +39,7 @@ class Account(BaseModel):
     @classmethod
     def get(cls, name: str):
 
-        account_info = get_alpaca_client().get_account()
+        account_info = client.get_account()
         portfolio_val = (
             getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
         )
@@ -65,7 +65,7 @@ class Account(BaseModel):
         write_account(self.name.lower(), self.model_dump())
 
     def reset(self, strategy: str):
-        account_info = get_alpaca_client().get_account()
+        account_info = client.get_account()
         portfolio_val = (
             getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
         )
