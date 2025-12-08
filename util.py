@@ -67,11 +67,18 @@ if not api_key or not secret_key:
         "Please set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables."
     )
 
+if api_key and secret_key:
+    print(f"Alpaca API key: {api_key}")
+    print(f"Alpaca secret key: {secret_key}")
+
 client = TradingClient(
     api_key=api_key,
     secret_key=secret_key,
     paper=os.getenv("ALPACA_PAPER", "true").lower() == "true"
 )
+
+if client:
+    print(f"Alpaca client: {client}")
 
 def alpaca_is_market_open() -> bool:
     clock = client.get_clock()
