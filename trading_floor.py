@@ -43,6 +43,12 @@ async def run_every_n_minutes():
     """
     Runs trading agents every N minutes, cooperatively stopping when signaled.
     """
+
+    print(
+        "Thread env keys present:",
+        bool(os.getenv("ALPACA_API_KEY")),
+        bool(os.getenv("ALPACA_SECRET_KEY"))
+    )
     add_trace_processor(LogTracer())
     traders = create_traders()
     
