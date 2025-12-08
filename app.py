@@ -21,6 +21,20 @@ mapper = {
     "account": Color.RED,
 }
 
+# ---------------- HuggingFace Spaces ENV FIX ----------------
+REQUIRED_KEYS = ["ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER"]
+
+def force_env():
+    for key in REQUIRED_KEYS:
+        val = os.getenv(key)
+        if val:
+            os.environ[key] = val  # force propagate to threads & subprocesses
+        else:
+            print(f"[HF WARNING] Missing env key: {key}")
+
+force_env()
+# -------------------------------------------------------------
+
 
 trading_thread = None
 
@@ -218,8 +232,14 @@ def start_trading_floor_and_thread():
 
     # 3. Define the thread's target function (wrapper to pass the event)
     def target_wrapper():
+        # re-inject the environment variables
+        force_env()
         # The target function now correctly passes the stop_event
-        asyncio.run(run_every_n_minutes())
+        try:
+            asyncio.run(run_every_n_minutes())
+        except Exception as e:
+            print(f"Error running trading floor: {e}")
+            return "❌ Trading floor failed to start."
 
     # 4. Create and start the thread
     trading_thread = threading.Thread(target=target_wrapper, daemon=True)
