@@ -39,7 +39,8 @@ class Account(BaseModel):
     @classmethod
     def get(cls, name: str):
 
-        account_info = client.get_account()
+        # account_info = client.get_account()
+        account_info =  None
         portfolio_val = (
             getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
         )
@@ -65,7 +66,8 @@ class Account(BaseModel):
         write_account(self.name.lower(), self.model_dump())
 
     def reset(self, strategy: str):
-        account_info = client.get_account()
+        # account_info = client.get_account()
+        account_info = None
         portfolio_val = (
             getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
         )
