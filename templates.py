@@ -54,7 +54,7 @@ STEP 1 — Execute the trade
 
 STEP 2 — Wait for FILL confirmation  
     After placing an order:
-      1. Call get_orders() repeatedly until order.status == "accepted"
+      1. Call get_orders() repeatedly until order.status == "filled"
       2. Extract from the accepted order:
             • filled_qty = order.filled_qty
             • filled_avg_price = order.filled_avg_price
