@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from market import get_share_price
 from database import write_account, read_account, write_log
-from util import client
+# from util import client
 from reset import strategy_mapper
 
 load_dotenv(override=True)
