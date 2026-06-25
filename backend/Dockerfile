@@ -36,6 +36,8 @@ RUN mkdir -p memory sandbox
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/root/.cargo/bin:$PATH"
 
-EXPOSE 7860
+EXPOSE 8000
 
-CMD ["python", "app.py"]
+# Serve the FastAPI backend. Run from /app so the MCP servers' cwd-relative
+# paths (uv run *.py, file:./memory/{name}.db) resolve correctly.
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

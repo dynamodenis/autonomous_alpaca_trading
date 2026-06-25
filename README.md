@@ -1,247 +1,111 @@
----
-title: Alpaca Trading floor
-emoji: 🚀
-colorFrom: red
-colorTo: indigo
-sdk: gradio
-sdk_version: 5.49.1
-app_file: app.py
-pinned: false
----
-
 # 🤖 AI Trading Floor
 
-An autonomous multi-agent trading simulation where AI traders powered by different language models compete in the stock market. Watch as each AI develops its own trading strategy and makes real-time decisions!
+An autonomous multi-agent trading simulation where AI traders powered by different
+language models compete in the stock market. Each AI develops its own strategy and
+makes real-time decisions against a live Alpaca paper-trading account.
 
-## 🎯 Live Demo
-
-🔗 **[View Live Trading Floor](https://huggingface.co/spaces/dynamodenis254/trading_floor)**
-
-## 📊 Meet the Traders
-
-Each AI agent starts with **$10,000** and trades independently in the stock market:
-
-| Name | Personality | Model | Strategy Style |
-|------|------------|-------|----------------|
-| **Warren Patience** | Conservative, long-term value investor | GPT-4.1 Mini | Patient, fundamental analysis |
-| **George Bold** | Aggressive risk-taker | DeepSeek V3 | Bold moves, high conviction |
-| **Ray Systematic** | Data-driven quantitative trader | Gemini 2.5 Flash | Systematic, rule-based |
-| **Cathie Crypto** | Innovation-focused growth investor | Grok 3 Mini | Disruptive tech & crypto exposure |
-
-## ✨ Features
-
-- **Real-time Trading Dashboard**: Monitor all 4 agents simultaneously
-- **Portfolio Tracking**: Live portfolio values, P&L, and holdings
-- **Transaction History**: Complete audit trail of all trades
-- **Performance Charts**: Visualize portfolio growth over time
-- **Live Logs**: Watch AI decision-making in real-time
-- **Multi-Model Competition**: Different AI models with unique trading styles
-- **Market Hours Aware**: Respects actual market trading hours
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.10+
-- API keys for the AI models you want to use
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/trading-floor.git
-cd trading-floor
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-# or with uv
-uv pip install -r requirements.txt
-```
-
-3. Create a `.env` file with your configuration:
-
-```env
-# Required: At least one API key
-OPENAI_API_KEY=your_openai_key_here
-
-# Optional: For multi-model competition (set USE_MANY_MODELS=true)
-DEEPSEEK_API_KEY=your_deepseek_key_here
-GOOGLE_API_KEY=your_google_key_here
-GROK_API_KEY=your_grok_key_here
-OPENROUTER_API_KEY=your_openrouter_key_here
-
-# Trading Configuration
-RUN_EVERY_N_MINUTES=60
-RUN_EVEN_WHEN_MARKET_IS_CLOSED=false
-USE_MANY_MODELS=true
-```
-
-### Running Locally
-
-**Option 1: Run Everything (UI + Agents)**
-```bash
-python app.py
-```
-
-**Option 2: Run Components Separately**
-```bash
-# Terminal 1: Start the trading agents
-python trading_floor.py
-
-# Terminal 2: Start the UI
-python app.py
-```
-
-The dashboard will be available at `http://localhost:7860`
-
-## ⚙️ Configuration Options
-
-### Environment Variables
-
-| Variable | Description | Default | Options |
-|----------|-------------|---------|---------|
-| `RUN_EVERY_N_MINUTES` | Trading cycle frequency | `60` | Any integer (minutes) |
-| `RUN_EVEN_WHEN_MARKET_IS_CLOSED` | Trade outside market hours | `false` | `true` / `false` |
-| `USE_MANY_MODELS` | Enable 4 different AI models | `false` | `true` / `false` |
-
-### Single Model vs Multi-Model
-
-**Single Model Mode** (`USE_MANY_MODELS=false`):
-- All 4 agents use GPT-4.1 Mini
-- Only requires `OPENAI_API_KEY`
-- Lower API costs
-- Great for testing strategies
-
-**Multi-Model Mode** (`USE_MANY_MODELS=true`):
-- Each agent uses a different AI model
-- Requires multiple API keys
-- Diverse trading strategies
-- More interesting competition
+The project is split into a **Python/FastAPI backend** (runs the agents + MCP tools
+and exposes a REST API) and a **React frontend** (the dashboard). They are deployed
+and run independently.
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                   app.py                        │
-│  (Gradio UI + Background Trading Thread)        │
-└─────────────────┬───────────────────────────────┘
-                  │
-         ┌────────┴────────┐
-         │                 │
-┌────────▼────────┐ ┌─────▼──────────┐
-│  trading_floor  │ │   Gradio UI    │
-│   (Agents)      │ │   Dashboard    │
-└────────┬────────┘ └────────────────┘
-         │
-    ┌────┴─────┬──────┬──────┐
-    │          │      │      │
-┌───▼───┐ ┌───▼───┐ ┌▼────┐ ┌▼─────┐
-│Warren │ │George │ │Ray  │ │Cathie│
-│ GPT-4 │ │DeepSeek│Gemini│ │ Grok │
-└───────┘ └───────┘ └─────┘ └──────┘
+┌──────────────────────────┐         REST / JSON          ┌──────────────────────────┐
+│   frontend/  (React+TS)   │  ───────────────────────────▶│   backend/  (FastAPI)     │
+│   Dashboard, polling UI   │ ◀───────────────────────────  │   /api/* endpoints        │
+└──────────────────────────┘                               └────────────┬─────────────┘
+                                                                         │
+                                                          ┌──────────────┴───────────────┐
+                                                          │  Trading floor (bg thread)    │
+                                                          │  4 agents × MCP tool servers  │
+                                                          └──────────────┬───────────────┘
+                                                ┌────────┬───────┬───────┴───────┐
+                                            ┌───▼──┐ ┌──▼───┐ ┌──▼──┐ ┌──────────▼─┐
+                                            │Alpaca│ │Market│ │Push │ │ Researcher │
+                                            │ MCP  │ │ data │ │ MCP │ │ web+memory │
+                                            └──────┘ └──────┘ └─────┘ └────────────┘
 ```
 
-## 📦 Project Structure
+## 📂 Project structure
 
 ```
-trading-floor/
-├── app.py                 # Main Gradio UI application
-├── trading_floor.py       # Autonomous agent scheduler
-├── traders.py            # Trader class implementation
-├── accounts.py           # Portfolio & transaction management
-├── agents.py             # AI agent logic
-├── market.py             # Market data & trading hours
-├── database.py           # Logging & persistence
-├── util.py               # Utilities & styling
-├── requirements.txt      # Python dependencies
-└── .env                  # Configuration (create this)
+7_mcp_alpaca_trading/
+├── backend/          # FastAPI service + trading floor + MCP servers
+│   ├── api.py            # FastAPI app (REST endpoints, CORS)
+│   ├── floor_control.py  # Start/stop the trading-floor background thread
+│   ├── trading_floor.py  # Scheduler — runs the agents every N minutes
+│   ├── traders.py        # Trader/Researcher agent construction
+│   ├── templates.py      # Agent prompts & personalities
+│   ├── accounts*.py      # Portfolio bookkeeping + MCP account server
+│   ├── market*.py        # Market-data + MCP market server
+│   ├── push_server.py    # Pushover notification MCP server
+│   ├── mcp_params.py     # MCP server wiring (Alpaca, market, push, researcher)
+│   ├── database.py       # SQLite persistence (accounts, logs, market cache)
+│   ├── Dockerfile  requirements.txt  .env.example
+│   └── README.md         # Backend setup, env vars, endpoint reference
+└── frontend/         # React + TypeScript dashboard (Vite)   ← coming next
 ```
 
-## 🎮 How It Works
+## 📊 Meet the traders
 
-1. **Initialization**: Each agent starts with $10,000 in cash
-2. **Analysis Phase**: Agents analyze market conditions, news, and their portfolio
-3. **Decision Making**: AI models decide on trades based on their personality
-4. **Execution**: Buy/sell orders are executed at market prices
-5. **Logging**: All decisions and transactions are recorded
-6. **Repeat**: Cycle repeats every N minutes during market hours
+Each AI agent starts with **$10,000** and trades independently:
 
-## 📈 Dashboard Features
+| Name | Personality | Model (multi-model mode) | Strategy Style |
+|------|------------|--------------------------|----------------|
+| **Warren Patience** | Conservative, long-term value investor | GPT-4.1 Mini | Patient, fundamental analysis |
+| **George Bold** | Aggressive macro risk-taker | DeepSeek V3 | Bold contrarian moves |
+| **Ray Systematic** | Data-driven quantitative trader | Gemini 2.5 Flash | Systematic, rule-based |
+| **Cathie Crypto** | Innovation-focused growth investor | Grok 3 Mini | Disruptive tech & crypto ETFs |
 
-### Real-Time Metrics
-- **Portfolio Value**: Current total value (cash + holdings)
-- **P&L Indicator**: Profit/Loss with color coding (🟢/🔴)
-- **Performance Chart**: Historical portfolio value over time
+In single-model mode (`USE_MANY_MODELS=false`) all four run on GPT-4.1 Mini.
 
-### Data Tables
-- **Holdings**: Current stock positions
-- **Recent Transactions**: Trade history with rationale
-- **Live Logs**: AI thinking process and decisions
+## 🚀 Quick start
 
-## 🔧 API Keys Setup
+### 1. Backend
 
-### Getting API Keys
+```bash
+cd backend
+cp .env.example .env          # then fill in your keys
+pip install -r requirements.txt
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+```
 
-1. **OpenAI (GPT-4.1 Mini)**: https://platform.openai.com/api-keys
-2. **DeepSeek**: https://platform.deepseek.com/
-3. **Google AI (Gemini)**: https://aistudio.google.com/apikey
-4. **Grok (xAI)**: https://console.x.ai/
-5. **OpenRouter**: https://openrouter.ai/keys
+API docs at `http://localhost:8000/docs`. See [`backend/README.md`](backend/README.md)
+for the full environment-variable reference and endpoint list.
 
-### Security Notes
-- ⚠️ **Never commit your `.env` file**
-- Add `.env` to `.gitignore`
-- For Hugging Face Spaces, use the Secrets tab in settings
-- Rotate keys regularly
+### 2. Frontend
 
-## 🚀 Deploying to Hugging Face Spaces
+The React dashboard lives in `frontend/` and talks to the backend via
+`VITE_API_BASE_URL`. _(Setup instructions land with the frontend scaffold.)_
 
-1. Create a new Space at https://huggingface.co/spaces
-2. Upload your code
-3. Add secrets in Settings → Repository Secrets:
-   - `OPENAI_API_KEY`
-   - `DEEPSEEK_API_KEY` (if using multi-model)
-   - `GOOGLE_API_KEY` (if using multi-model)
-   - `GROK_API_KEY` (if using multi-model)
-   - `RUN_EVERY_N_MINUTES=60`
-   - `USE_MANY_MODELS=true`
-4. Space will auto-deploy!
+## 🔌 API overview
 
-## 🤝 Contributing
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET`  | `/api/traders` | Trader roster |
+| `GET`  | `/api/traders/{name}` | One trader's account snapshot |
+| `GET`  | `/api/traders/{name}/logs` | Recent log entries |
+| `GET`  | `/api/dashboard` | All traders' accounts + logs in one payload |
+| `GET`  | `/api/floor/status` | Whether the trading floor is running |
+| `POST` | `/api/floor/start` · `/api/floor/stop` | Control the trading floor |
 
-Contributions are welcome! Ideas:
-- New trading strategies
-- Additional AI models
-- Enhanced analytics
-- Risk management features
-- Backtesting capabilities
+## ⚙️ Configuration
+
+All configuration is via environment variables in `backend/.env` — see
+[`backend/.env.example`](backend/.env.example) for the complete annotated list
+(Alpaca, LLM providers, market data, push notifications, trading cadence, CORS).
 
 ## ⚖️ Disclaimer
 
 **This is a simulation for educational and entertainment purposes only.**
-
-- 🚫 Not financial advice
-- 🚫 Not suitable for real trading
-- 🚫 No guarantee of accuracy
-- ⚠️ AI models can make irrational decisions
-- ⚠️ Past performance ≠ future results
-
-**Do not use this for actual investment decisions. Always consult with a qualified financial advisor.**
+Not financial advice. AI models can make irrational decisions. Do not use this for
+actual investment decisions — always consult a qualified financial advisor.
 
 ## 📄 License
 
-MIT License - feel free to use and modify!
-
-## 🙏 Acknowledgments
-
-- Built with [Gradio](https://gradio.app/)
-- Powered by OpenAI, DeepSeek, Google, and xAI
-- Inspired by legendary investors Warren Buffett, George Soros, Ray Dalio, and Cathie Wood
+MIT License.
 
 ---
 
-**Made with ❤️ by [DynamoDenis254](https://huggingface.co/dynamodenis254) [LinkedIn](https://www.linkedin.com/in/dynamo-denis-mbugua-53304b197/)**
-
-⭐ Star this project if you find it interesting!
+**Made with ❤️ by [DynamoDenis254](https://huggingface.co/dynamodenis254) · [LinkedIn](https://www.linkedin.com/in/dynamo-denis-mbugua-53304b197/)**

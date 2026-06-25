@@ -2,9 +2,23 @@
 __pycache__/
 *.pyc
 .venv/
-*.db  # Important: Exclude database files like George.db, Warren.db, accounts.db
-*.txt # Exclude temporary files
-/memory/ # Exclude the entire memory directory if it's large/temporary
-accounts.db
+
+# Secrets — never commit real env files (.env.example is fine)
+.env
+.env.local
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Databases (e.g. accounts.db, George.db, Warren.db)
+*.db
+
+# Per-trader memory stores
 memory/
+backend/memory/
+
+# Node / frontend build artifacts
+node_modules/
+frontend/dist/
+
 community_contributions/
