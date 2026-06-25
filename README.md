@@ -44,7 +44,14 @@ and run independently.
 │   ├── database.py       # SQLite persistence (accounts, logs, market cache)
 │   ├── Dockerfile  requirements.txt  .env.example
 │   └── README.md         # Backend setup, env vars, endpoint reference
-└── frontend/         # React + TypeScript dashboard (Vite)   ← coming next
+└── frontend/         # React + TypeScript dashboard (Vite)
+    ├── src/
+    │   ├── api/         # Typed fetch client + backend payload types
+    │   ├── components/  # TraderCard, PortfolioChart, SummaryBar, FloorControl…
+    │   ├── hooks/       # usePolling — no-flicker interval polling
+    │   ├── lib/  theme/ # Formatting helpers + per-trader theming
+    │   └── App.tsx  index.css   # Layout + design system
+    └── README.md        # Frontend setup & configuration
 ```
 
 ## 📊 Meet the traders
@@ -76,8 +83,17 @@ for the full environment-variable reference and endpoint list.
 
 ### 2. Frontend
 
-The React dashboard lives in `frontend/` and talks to the backend via
-`VITE_API_BASE_URL`. _(Setup instructions land with the frontend scaffold.)_
+```bash
+cd frontend
+npm install
+npm run dev                   # http://localhost:5173
+```
+
+In dev, Vite proxies `/api/*` to the backend on port 8000 (no CORS setup
+needed) — just keep the backend running. The dashboard auto-polls every few
+seconds and lets you start/stop the trading floor from the header. See
+[`frontend/README.md`](frontend/README.md) for configuration and production
+build/deploy notes.
 
 ## 🔌 API overview
 
