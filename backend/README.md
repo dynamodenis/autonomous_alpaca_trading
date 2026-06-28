@@ -22,8 +22,7 @@ pip install -r requirements.txt
 |----------|---------|
 | `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` | Alpaca brokerage (paper) credentials |
 | `ALPACA_PAPER` | `true` (default) for paper trading |
-| `OPENAI_API_KEY` | Required (default model) |
-| `DEEPSEEK_API_KEY`, `GOOGLE_API_KEY`, `GROK_API_KEY`, `OPENROUTER_API_KEY` | Multi-model mode |
+| `OPENROUTER_API_KEY` | Required — all traders run through OpenRouter |
 | `BRAVE_API_KEY` | Researcher web search |
 | `POLYGON_API_KEY`, `POLYGON_PLAN` | Market data (optional; falls back to random prices) |
 | `PUSHOVER_USER`, `PUSHOVER_TOKEN` | Push notifications |

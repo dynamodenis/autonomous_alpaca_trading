@@ -3,7 +3,7 @@ from traders import Trader
 from typing import List
 import asyncio
 from tracers import LogTracer
-from agents import add_trace_processor
+from agents import set_trace_processors
 from dotenv import load_dotenv
 from util import stop_event, alpaca_is_market_open
 import os
@@ -19,16 +19,19 @@ USE_MANY_MODELS = os.getenv("USE_MANY_MODELS", "false").strip().lower() == "true
 names = ["Warren", "George", "Ray", "Cathie"]
 lastnames = ["Patience", "Bold", "Systematic", "Crypto"]
 
+# Model names use OpenRouter's "provider/model" identifiers — every trader is
+# routed through OpenRouter (see traders.get_model), so a single
+# OPENROUTER_API_KEY unlocks all of these.
 if USE_MANY_MODELS:
     model_names = [
-        "gpt-4.1-mini",
-        "deepseek-chat",
-        "gemini-2.5-flash-preview-04-17",
-        "grok-3-mini-beta",
+        "openai/gpt-4.1-mini",
+        "deepseek/deepseek-chat",
+        "google/gemini-2.5-flash",
+        "x-ai/grok-3-mini-beta",
     ]
     short_model_names = ["GPT 4.1 Mini", "DeepSeek V3", "Gemini 2.5 Flash", "Grok 3 Mini"]
 else:
-    model_names = ["gpt-4.1-mini"] * 4
+    model_names = ["openai/gpt-4.1-mini"] * 4
     short_model_names = ["GPT 4.1 mini"] * 4
 
 
@@ -49,7 +52,9 @@ async def run_every_n_minutes():
         bool(os.getenv("ALPACA_API_KEY")),
         bool(os.getenv("ALPACA_SECRET_KEY"))
     )
-    add_trace_processor(LogTracer())
+    # Replace (not append) the processor list so the SDK's default OpenAI trace
+    # exporter is dropped — we run fully on OpenRouter and have no OpenAI key.
+    set_trace_processors([LogTracer()])
     traders = create_traders()
     
     # Create an asyncio Event to link the thread signal to the loop
