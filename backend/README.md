@@ -1,3 +1,13 @@
+---
+title: Alpaca Trading Floor API
+emoji: 🚀
+colorFrom: red
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # AI Trading Floor — Backend
 
 FastAPI service that runs the autonomous multi-agent trading floor and exposes
