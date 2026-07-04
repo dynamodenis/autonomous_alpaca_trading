@@ -10,6 +10,7 @@ servers (`uv run accounts_server.py`, `file:./memory/{name}.db`) resolve:
 """
 
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -18,11 +19,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from accounts import Account
 from database import read_log
 from floor_control import is_floor_running, start_trading_floor, stop_trading_floor
+from reconcile import (
+    reconcile_all_blocking,
+    sync_balances_from_alpaca,
+    sync_balances_from_alpaca_blocking,
+)
 from trading_floor import lastnames, names, short_model_names
+from util import alpaca_get_clock
 
 load_dotenv(override=True)
 
-app = FastAPI(title="AI Trading Floor API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # On server load, sync each trader's balance from the live Alpaca account so
+    # the SQLite the frontend reads reflects real money. Non-fatal: a brokerage
+    # error just leaves existing balances (and all history) untouched.
+    try:
+        report = await sync_balances_from_alpaca()
+        print(f"[startup] Alpaca balance sync: {report}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] Alpaca balance sync failed: {e}")
+    yield
+
+
+app = FastAPI(title="AI Trading Floor API", version="1.0.0", lifespan=lifespan)
 
 # CORS — allow the React dev server / deployed frontend origin(s).
 # Set FRONTEND_ORIGINS as a comma-separated list; defaults to "*" for local dev.
@@ -119,13 +140,58 @@ def floor_status() -> dict:
     return {"running": is_floor_running()}
 
 
+def _safe_sync() -> dict | None:
+    """Sync balances from Alpaca, swallowing errors (never block start/stop)."""
+    try:
+        return sync_balances_from_alpaca_blocking()
+    except Exception as e:  # noqa: BLE001
+        print(f"[floor] Alpaca balance sync failed: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def _market_info() -> dict:
+    """Current Alpaca market clock for the UI: is it open, and next open/close."""
+    try:
+        clock = alpaca_get_clock()
+        return {
+            "ok": True,
+            "is_open": bool(clock.is_open),
+            "next_open": clock.next_open.isoformat() if clock.next_open else None,
+            "next_close": clock.next_close.isoformat() if clock.next_close else None,
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+
+
 @app.post("/api/floor/start")
 def floor_start() -> dict:
+    # Sync to the live Alpaca balance before kicking off a trading session.
+    sync = _safe_sync()
     message = start_trading_floor()
-    return {"running": is_floor_running(), "message": message}
+    market = _market_info()
+    # Tell the user whether the first cycle runs now or waits for the open.
+    if market.get("ok"):
+        message += (
+            " Market is open — running the first cycle now."
+            if market["is_open"]
+            else " Market is closed — no orders/research until the next open."
+        )
+    return {"running": is_floor_running(), "message": message, "balance_sync": sync, "market": market}
 
 
 @app.post("/api/floor/stop")
 def floor_stop() -> dict:
     message = stop_trading_floor()
-    return {"running": is_floor_running(), "message": message}
+    # Sync once more after stopping so the dashboard shows the end-of-session balance.
+    sync = _safe_sync()
+    return {"running": is_floor_running(), "message": message, "balance_sync": sync}
+
+
+@app.post("/api/reconcile")
+def reconcile_balances() -> dict:
+    """Manually reconcile against Alpaca: sync balances + report holdings drift."""
+    try:
+        return reconcile_all_blocking()
+    except Exception as e:  # noqa: BLE001
+        print(f"[reconcile] failed: {e}")
+        return {"ok": False, "error": str(e)}

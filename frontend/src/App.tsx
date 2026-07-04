@@ -63,6 +63,14 @@ export default function App() {
     [refresh],
   );
 
+  const handleFloorInfo = useCallback(
+    (message: string) => {
+      setToast({ kind: "ok", msg: message });
+      refresh();
+    },
+    [refresh],
+  );
+
   const handleFloorError = useCallback((message: string) => {
     setToast({ kind: "err", msg: message });
   }, []);
@@ -98,6 +106,7 @@ export default function App() {
           <FloorControl
             running={running}
             onChange={handleFloorChange}
+            onInfo={handleFloorInfo}
             onError={handleFloorError}
           />
         </div>

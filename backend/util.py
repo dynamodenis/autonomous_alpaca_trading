@@ -1,5 +1,6 @@
 from enum import Enum
 from alpaca.trading.client import TradingClient
+from alpaca.trading.models import Clock
 from alpaca.trading.requests import GetOrdersRequest
 from alpaca.trading.enums import OrderStatus
 
@@ -28,6 +29,10 @@ client = TradingClient(
     secret_key=secret_key,
     paper=os.getenv("ALPACA_PAPER", "true").lower() == "true"
 )
+
+def alpaca_get_clock() -> Clock:
+    """Return the Alpaca market clock (is_open, next_open, next_close, timestamp)."""
+    return client.get_clock()  # type: ignore[return-value]
 
 def alpaca_is_market_open() -> bool:
     clock = client.get_clock()

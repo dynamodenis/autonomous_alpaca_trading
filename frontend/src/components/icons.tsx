@@ -32,6 +32,15 @@ export const RefreshIcon = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const SyncIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M21 2v6h-6" />
+    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+    <path d="M3 22v-6h6" />
+    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+  </svg>
+);
+
 export const TrendUpIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <polyline points="3 17 9 11 13 15 21 7" />

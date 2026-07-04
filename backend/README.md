@@ -22,12 +22,21 @@ pip install -r requirements.txt
 |----------|---------|
 | `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` | Alpaca brokerage (paper) credentials |
 | `ALPACA_PAPER` | `true` (default) for paper trading |
-| `OPENROUTER_API_KEY` | Required — all traders run through OpenRouter |
-| `BRAVE_API_KEY` | Researcher web search |
+| `OPENROUTER_API_KEY` | Required — all traders + researcher run through OpenRouter |
+| `TRADER_MODEL` | Model for all traders when `USE_MANY_MODELS=false` (default `openai/gpt-4.1-mini`) |
+| `TRADER_MODELS` | Comma-separated models (one per trader, in order) when `USE_MANY_MODELS=true` |
+| `RESEARCHER_MODEL` | Cheap model for the Researcher sub-agent (default `openai/gpt-4.1-mini`) |
+| `SEARCH_PROVIDER` | Researcher web search provider: `tavily` (default) or `brave` |
+| `TAVILY_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=tavily`, the default) |
+| `BRAVE_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=brave`) |
 | `POLYGON_API_KEY`, `POLYGON_PLAN` | Market data (optional; falls back to random prices) |
 | `PUSHOVER_USER`, `PUSHOVER_TOKEN` | Push notifications |
-| `RUN_EVERY_N_MINUTES` | Trading cycle frequency (default `60`) |
-| `RUN_EVEN_WHEN_MARKET_IS_CLOSED` | `true`/`false` (default `false`) |
+| `RUN_SCHEDULE` | `open_close` (default — run at the open and before close) or `interval` |
+| `RUN_ON_START` | Run one cycle immediately when the floor starts (default `true`) |
+| `OPEN_DELAY_MINUTES` | Minutes after the open to run (default `0`) |
+| `CLOSE_LEAD_MINUTES` | Minutes before the close to run (default `10`, so orders can still fill) |
+| `RUN_EVERY_N_MINUTES` | Trading cycle frequency, **interval mode only** (default `60`) |
+| `RUN_EVEN_WHEN_MARKET_IS_CLOSED` | Interval mode only: `true`/`false` (default `false`) |
 | `USE_MANY_MODELS` | `true`/`false` (default `false`) |
 | `FRONTEND_ORIGINS` | Comma-separated CORS origins (default `*`) |
 

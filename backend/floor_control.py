@@ -9,7 +9,7 @@ import asyncio
 import os
 import threading
 
-from trading_floor import run_every_n_minutes
+from trading_floor import run_scheduler
 from util import stop_event
 
 # ---------------- HuggingFace Spaces / subprocess ENV propagation ----------------
@@ -61,7 +61,7 @@ def start_trading_floor() -> str:
         # Re-inject env vars into the new thread before spawning subprocesses
         force_env()
         try:
-            asyncio.run(run_every_n_minutes())
+            asyncio.run(run_scheduler())
         except Exception as e:
             print(f"Error running trading floor: {e}")
 

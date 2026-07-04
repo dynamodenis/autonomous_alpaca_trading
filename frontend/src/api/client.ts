@@ -3,6 +3,7 @@ import type {
   FloorControlResult,
   FloorStatus,
   LogEntry,
+  ReconcileResult,
   Trader,
 } from "./types";
 
@@ -65,4 +66,7 @@ export const api = {
 
   stopFloor: () =>
     request<FloorControlResult>("/api/floor/stop", { method: "POST" }),
+
+  reconcile: () =>
+    request<ReconcileResult>("/api/reconcile", { method: "POST" }),
 };

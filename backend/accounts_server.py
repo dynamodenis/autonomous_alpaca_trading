@@ -3,34 +3,10 @@ from accounts import Account
 
 mcp = FastMCP("accounts_server")
 
+# NOTE: buy/sell holdings are no longer logged via a separate tool. Order
+# placement (alpaca_exec_server.place_*_order) now records the filled trade to the
+# account automatically, so there is a single logging path and no double-counting.
 
-@mcp.tool()
-async def update_buy_account_holdings_transactions(
-    name: str, symbol: str, quantity: int, rationale: str, price: float
-) -> dict[str, str]:
-    """Update account holdings when you buy shares for the specific account."""
-    print(f"update transactions for {symbol}")
-
-    account = Account.get(name)
-    account.update_holdings_and_transactions(
-        "buy", symbol, quantity, rationale, price
-    )
-    account.save()  # ← Ensure save is called
-    return {"status": "ok", "message": f"Updated holding {symbol} "}
-
-@mcp.tool()
-async def update_sell_account_holdings_transactions(
-    name: str, symbol: str, quantity: int, rationale: str, price: float
-) -> dict[str, str]:
-    """Update account holdings when you sell shares for the specific account."""
-
-    print(f"update transactions for {symbol}")
-    account = Account.get(name)
-    account.update_holdings_and_transactions(
-        "sell", symbol, quantity, rationale, price
-    )
-    account.save()  # ← Ensure save is called
-    return {"status": "ok", "message": f"Updated holding {symbol} "}
 
 @mcp.tool()
 async def update_log_trade(name: str, type: str, message: str) -> str:

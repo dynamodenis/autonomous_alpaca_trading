@@ -47,6 +47,55 @@ export interface FloorStatus {
   running: boolean;
 }
 
+/** Alpaca market clock, as surfaced by POST /api/floor/start. */
+export interface MarketInfo {
+  ok: boolean;
+  is_open?: boolean;
+  next_open?: string | null;
+  next_close?: string | null;
+  error?: string;
+}
+
+export interface BalanceSyncEntry {
+  name: string;
+  old_balance: number;
+  new_balance: number;
+}
+
+/** Result of syncing trader balances from the live Alpaca account. */
+export interface BalanceSync {
+  ok: boolean;
+  field?: string;
+  alpaca_balance?: number | null;
+  synced?: BalanceSyncEntry[];
+  error?: string;
+}
+
 export interface FloorControlResult extends FloorStatus {
   message: string;
+  market?: MarketInfo;
+  balance_sync?: BalanceSync;
+}
+
+/** Per-symbol holdings drift between summed SQLite holdings and Alpaca. */
+export interface HoldingsDrift {
+  symbol: string;
+  sqlite_total: number;
+  alpaca_qty: number;
+  diff: number;
+}
+
+export interface HoldingsReconcile {
+  ok: boolean;
+  symbols_checked?: number;
+  drift?: HoldingsDrift[];
+  error?: string;
+}
+
+/** Result of POST /api/reconcile — balances synced + holdings drift report. */
+export interface ReconcileResult {
+  ok: boolean;
+  balances?: BalanceSync;
+  holdings?: HoldingsReconcile;
+  error?: string;
 }

@@ -1,6 +1,7 @@
 from typing import Literal
 from pydantic import BaseModel
 import json
+import os
 from dotenv import load_dotenv
 from datetime import datetime
 from market import get_share_price
@@ -12,6 +13,20 @@ load_dotenv(override=True)
 
 INITIAL_BALANCE = 10_000.0
 SPREAD = 0.002
+# Cap the portfolio-value history so the DB row and the frontend payload don't
+# grow without bound (a new point is appended on every account report()).
+MAX_TIMESERIES_POINTS = int(os.getenv("MAX_TIMESERIES_POINTS", "500"))
+
+
+def set_initial_balance(value: float) -> None:
+    """Override the seed balance used for brand-new accounts.
+
+    Called once at server startup by the reconciliation step so freshly created
+    trader accounts start from the real Alpaca account value rather than the
+    hardcoded default. Existing accounts are never re-seeded from this.
+    """
+    global INITIAL_BALANCE
+    INITIAL_BALANCE = float(value)
 
 
 class Transaction(BaseModel):
@@ -38,18 +53,15 @@ class Account(BaseModel):
 
     @classmethod
     def get(cls, name: str):
-
-        # account_info = client.get_account()
-        account_info =  None
-        portfolio_val = (
-            getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
-        )
+        # Seed a fresh account ONLY when it does not exist yet. We deliberately
+        # do NOT re-seed on a balance mismatch: the balance is synced from Alpaca
+        # at runtime (see reconcile.sync_balances_from_alpaca), and re-seeding on
+        # mismatch would wipe holdings/transactions/history on every change.
         fields = read_account(name.lower())
-        if not fields or fields["balance"] != portfolio_val:
-
+        if not fields:
             fields = {
                 "name": name.lower(),
-                "balance": float(portfolio_val),
+                "balance": float(INITIAL_BALANCE),
                 "strategy": strategy_mapper(name.lower()),
                 "holdings": {},
                 "transactions": [],
@@ -66,12 +78,7 @@ class Account(BaseModel):
         write_account(self.name.lower(), self.model_dump())
 
     def reset(self, strategy: str):
-        # account_info = client.get_account()
-        account_info = None
-        portfolio_val = (
-            getattr(account_info, "portfolio_value", None) or INITIAL_BALANCE
-        )
-        self.balance = float(portfolio_val)
+        self.balance = float(INITIAL_BALANCE)
         self.strategy = strategy
         self.holdings = {}
         self.transactions = []
@@ -222,6 +229,9 @@ class Account(BaseModel):
         self.portfolio_value_time_series.append(
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), portfolio_value)
         )
+        # Keep only the most recent points so this list can't grow forever.
+        if len(self.portfolio_value_time_series) > MAX_TIMESERIES_POINTS:
+            self.portfolio_value_time_series = self.portfolio_value_time_series[-MAX_TIMESERIES_POINTS:]
         self.save()
         pnl = self.calculate_profit_loss(portfolio_value)
         data = self.model_dump()

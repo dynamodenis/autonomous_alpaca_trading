@@ -1,7 +1,8 @@
 from contextlib import AsyncExitStack
+from accounts import Account
 from accounts_client import read_accounts_resource, read_strategy_resource
 from tracers import make_trace_id
-from agents import Agent, Tool, Runner, OpenAIChatCompletionsModel, trace
+from agents import Agent, Tool, Runner, OpenAIChatCompletionsModel, trace, function_tool
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
@@ -22,7 +23,12 @@ openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-MAX_TURNS = 20
+MAX_TURNS = 10
+
+# The Researcher sub-agent does web search + summarization, which is cheap,
+# high-volume work — so it runs on its own (cheaper) model, independent of the
+# trader's model. Override with RESEARCHER_MODEL (an OpenRouter "provider/model" id).
+RESEARCHER_MODEL = os.getenv("RESEARCHER_MODEL", "openai/gpt-4.1-mini")
 
 # Every trader runs through OpenRouter, which gives us access to models from
 # OpenAI, DeepSeek, Google, xAI, etc. behind a single API key. Model names use
@@ -44,9 +50,40 @@ async def get_researcher(mcp_servers, model_name) -> Agent:
     return researcher
 
 
-async def get_researcher_tool(mcp_servers, model_name) -> Tool:
+def _log_researcher_cost(owner_name: str, model_name: str, result) -> None:
+    """Log the Researcher sub-agent's turn count and token usage per call.
+
+    The researcher runs as a tool with its own SDK context, so its tokens are NOT
+    in the trader's totals — this logs them separately so the full cost is visible.
+    """
+    try:
+        turns = len(result.raw_responses)
+    except Exception:  # noqa: BLE001
+        turns = -1
+    usage = getattr(getattr(result, "context_wrapper", None), "usage", None)
+    inp = getattr(usage, "input_tokens", 0) or 0
+    out = getattr(usage, "output_tokens", 0) or 0
+    total = getattr(usage, "total_tokens", 0) or 0
+    msg = f"researcher turns={turns} tokens(in={inp}, out={out}, total={total}) model={model_name}"
+    print(f"[cost][researcher] {owner_name}: {msg}")
+    try:
+        Account.write_log(owner_name, "research-cost", msg)
+    except Exception as e:  # noqa: BLE001
+        print(f"[cost] failed to write researcher cost log for {owner_name}: {e}")
+
+
+async def get_researcher_tool(mcp_servers, model_name, owner_name: str) -> Tool:
     researcher = await get_researcher(mcp_servers, model_name)
-    return researcher.as_tool(tool_name="Researcher", tool_description=research_tool())
+
+    # Wrap the researcher manually (instead of researcher.as_tool) so we get its
+    # RunResult back and can log token usage on every call.
+    @function_tool(name_override="Researcher", description_override=research_tool())
+    async def researcher_tool(query: str) -> str:
+        result = await Runner.run(researcher, query, max_turns=MAX_TURNS)
+        _log_researcher_cost(owner_name, model_name, result)
+        return str(result.final_output)
+
+    return researcher_tool
 
 
 class Trader:
@@ -58,7 +95,8 @@ class Trader:
         self.do_trade = True
 
     async def create_agent(self, trader_mcp_servers, researcher_mcp_servers) -> Agent:
-        tool = await get_researcher_tool(researcher_mcp_servers, self.model_name)
+        # Researcher runs on its own cheap model, not the trader's.
+        tool = await get_researcher_tool(researcher_mcp_servers, RESEARCHER_MODEL, owner_name=self.name)
         self.agent = Agent(
             name=self.name,
             instructions=trader_instructions(self.name),
@@ -89,7 +127,34 @@ class Trader:
             if self.do_trade
             else rebalance_message(self.name, strategy, account)
         )
-        await Runner.run(self.agent, message, max_turns=MAX_TURNS)
+        result = await Runner.run(self.agent, message, max_turns=MAX_TURNS)
+        self._log_run_cost(result)
+
+    def _log_run_cost(self, result):
+        """Log this run's turn count and token usage so an expensive cycle is
+        visible (in stdout and the dashboard logs) before the bill arrives.
+
+        NOTE: the Researcher sub-agent runs as a tool with its own SDK context,
+        so its tokens are tracked separately and are NOT included in these totals.
+        """
+        try:
+            turns = len(result.raw_responses)
+        except Exception:  # noqa: BLE001
+            turns = -1
+        usage = getattr(getattr(result, "context_wrapper", None), "usage", None)
+        inp = getattr(usage, "input_tokens", 0) or 0
+        out = getattr(usage, "output_tokens", 0) or 0
+        total = getattr(usage, "total_tokens", 0) or 0
+        msg = (f"turns={turns}/{MAX_TURNS} tokens(in={inp}, out={out}, total={total}) "
+               f"model={self.model_name}")
+        print(f"[cost] {self.name}: {msg}")
+        if turns >= max(1, int(MAX_TURNS * 0.8)):
+            print(f"[cost][WARN] {self.name} used {turns}/{MAX_TURNS} turns — near/at the "
+                  f"cap; the agent may be looping or its output was truncated.")
+        try:
+            Account.write_log(self.name, "cost", msg)
+        except Exception as e:  # noqa: BLE001
+            print(f"[cost] failed to write cost log for {self.name}: {e}")
 
     async def run_with_mcp_servers(self):
         async with AsyncExitStack() as stack:
