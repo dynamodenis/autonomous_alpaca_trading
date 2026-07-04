@@ -1,0 +1,11 @@
+// Cloudflare Worker config: serve the built dashboard as static assets.
+// With this file present, `npx wrangler deploy` uploads ./dist directly and
+// skips wrangler's framework auto-configuration (which requires Vite >= 6).
+{
+  "name": "autonomous-trading",
+  "compatibility_date": "2026-07-04",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

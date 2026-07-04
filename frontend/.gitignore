@@ -22,7 +22,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# Env
+# Env — .env.production holds only the public backend URL (no secrets),
+# and must be committed so Cloudflare's CI build bakes in the right API base.
 .env
 .env.*
 !.env.example
+!.env.production
