@@ -197,7 +197,22 @@ export default function App() {
           Simulation only · not financial advice · paper-trading via Alpaca
         </span>
         <span>
-          Built with React · Vite ·{" "}
+          <a
+            href="https://github.com/dynamodenis/autonomous_alpaca_trading"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>{" "}
+          ·{" "}
+          <a
+            href="https://huggingface.co/spaces/dynamodenis254/alpaca_trading"
+            target="_blank"
+            rel="noreferrer"
+          >
+            🤗 Backend
+          </a>{" "}
+          · Built with React · Vite ·{" "}
           <a
             href="https://www.linkedin.com/in/dynamo-denis-mbugua-53304b197/"
             target="_blank"
