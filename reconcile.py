@@ -151,6 +151,45 @@ async def reconcile_all() -> dict:
     }
 
 
+async def fetch_portfolio_snapshot() -> dict:
+    """Live view of the single shared Alpaca account: equity, cash, positions.
+
+    The four traders all trade against this one account, so this snapshot —
+    not a sum over traders — is the true combined portfolio.
+    """
+    try:
+        info = await alpaca_exec.get_account_info()
+        positions = await alpaca_exec.get_positions()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+
+    try:
+        equity = float(info.get("equity"))
+        cash = float(info.get("cash"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": f"unusable Alpaca account figures: {info!r}"}
+
+    positions_value = 0.0
+    for p in positions:
+        try:
+            positions_value += float(p.get("market_value") or 0.0)
+        except (TypeError, ValueError):
+            pass
+
+    return {
+        "ok": True,
+        "equity": equity,
+        "cash": cash,
+        "positions_value": positions_value,
+        "positions_count": len(positions),
+    }
+
+
+def fetch_portfolio_snapshot_blocking() -> dict:
+    """Sync wrapper for FastAPI's threadpool-run sync endpoints."""
+    return asyncio.run(fetch_portfolio_snapshot())
+
+
 def sync_balances_from_alpaca_blocking() -> dict:
     """Synchronous wrapper for use from FastAPI's threadpool (sync endpoints)."""
     return asyncio.run(sync_balances_from_alpaca())

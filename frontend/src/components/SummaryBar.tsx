@@ -1,29 +1,28 @@
 import type { CSSProperties } from "react";
-import type { DashboardTrader } from "../api/types";
-import {
-  formatSignedPercent,
-  formatSignedUsd,
-  formatUsd,
-  pnlPercent,
-} from "../lib/format";
+import type { DashboardTrader, PortfolioSummary } from "../api/types";
+import { formatSignedPercent, formatSignedUsd, formatUsd } from "../lib/format";
 import { traderTheme } from "../theme/traders";
 
 interface Props {
   traders: DashboardTrader[];
+  /** Live view of the single shared Alpaca account (null while unavailable). */
+  portfolio: PortfolioSummary | null;
 }
 
-export default function SummaryBar({ traders }: Props) {
-  const totalValue = traders.reduce(
-    (sum, t) => sum + t.account.total_portfolio_value,
-    0,
-  );
-  const totalPnl = traders.reduce(
-    (sum, t) => sum + t.account.total_profit_loss,
-    0,
-  );
-  const invested = traders.length * 10_000;
-  const pct = invested ? (totalPnl / invested) * 100 : 0;
-  const up = totalPnl >= 0;
+/** A trader's unrealized return on the capital they actually put into positions. */
+function traderReturnPct(t: DashboardTrader): number | null {
+  const pnl = t.account.total_profit_loss;
+  const costBasis = t.account.total_portfolio_value - t.account.balance - pnl;
+  return costBasis > 0 ? (pnl / costBasis) * 100 : null;
+}
+
+export default function SummaryBar({ traders, portfolio }: Props) {
+  // All four traders share ONE Alpaca account, so the combined view comes
+  // from the live account snapshot — never from summing the trader cards.
+  const live = portfolio?.ok ? portfolio : null;
+  const initial = portfolio?.initial_equity ?? null;
+  const pnl = live?.pnl;
+  const up = (pnl ?? 0) >= 0;
 
   const leader = traders.reduce<DashboardTrader | null>((best, t) => {
     if (!best) return t;
@@ -36,22 +35,41 @@ export default function SummaryBar({ traders }: Props) {
   const leaderStyle = leaderTheme
     ? ({ color: leaderTheme.accent } as CSSProperties)
     : undefined;
+  const leaderPct = leader ? traderReturnPct(leader) : null;
 
   return (
     <section className="summary">
       <div className="card summary-card">
-        <div className="label">Combined portfolio</div>
-        <div className="value mono">{formatUsd(totalValue)}</div>
-        <div className="sub muted">across {traders.length} AI traders</div>
+        <div className="label">Initial portfolio</div>
+        <div className="value mono">
+          {initial != null ? formatUsd(initial) : "—"}
+        </div>
+        <div className="sub muted">
+          {portfolio?.initial_recorded_at
+            ? `account value on ${new Date(portfolio.initial_recorded_at).toLocaleDateString()}`
+            : "before trading began"}
+        </div>
+      </div>
+
+      <div className="card summary-card">
+        <div className="label">Current portfolio</div>
+        <div className="value mono">{live ? formatUsd(live.equity!) : "—"}</div>
+        <div className="sub muted">
+          {live
+            ? `${formatUsd(live.cash ?? 0)} cash · ${formatUsd(live.positions_value ?? 0)} in ${live.positions_count ?? 0} positions`
+            : "Alpaca unavailable — retrying"}
+        </div>
       </div>
 
       <div className="card summary-card">
         <div className="label">Total P / L</div>
         <div className={`value mono ${up ? "pos" : "neg"}`}>
-          {formatSignedUsd(totalPnl)}
+          {pnl != null ? formatSignedUsd(pnl) : "—"}
         </div>
         <div className={`sub ${up ? "pos" : "neg"}`}>
-          {formatSignedPercent(pct)} vs. {formatUsd(invested)} seed
+          {pnl != null && live?.pnl_pct != null
+            ? `${formatSignedPercent(live.pnl_pct)} on the shared account`
+            : "since the initial snapshot"}
         </div>
       </div>
 
@@ -62,7 +80,9 @@ export default function SummaryBar({ traders }: Props) {
         </div>
         <div className="sub muted">
           {leader
-            ? `${formatSignedPercent(pnlPercent(leader.account.total_profit_loss))} · ${leader.model}`
+            ? `${formatSignedUsd(leader.account.total_profit_loss)}${
+                leaderPct != null ? ` · ${formatSignedPercent(leaderPct)}` : ""
+              } · ${leader.model}`
             : "no data"}
         </div>
       </div>

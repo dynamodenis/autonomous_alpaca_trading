@@ -3,6 +3,7 @@ import type {
   FloorControlResult,
   FloorStatus,
   LogEntry,
+  PortfolioSummary,
   ReconcileResult,
   Trader,
 } from "./types";
@@ -53,6 +54,8 @@ export const api = {
     request<DashboardTrader[]>(`/api/dashboard?log_limit=${logLimit}`),
 
   getTraders: () => request<Trader[]>("/api/traders"),
+
+  getPortfolio: () => request<PortfolioSummary>("/api/portfolio"),
 
   getTraderLogs: (name: string, limit = 13) =>
     request<LogEntry[]>(

@@ -43,6 +43,20 @@ export interface DashboardTrader extends Trader {
   logs: LogEntry[];
 }
 
+/** The real shared Alpaca account, from GET /api/portfolio. */
+export interface PortfolioSummary {
+  ok: boolean;
+  error?: string;
+  equity?: number;
+  cash?: number;
+  positions_value?: number;
+  positions_count?: number;
+  initial_equity?: number | null;
+  initial_recorded_at?: string | null;
+  pnl?: number;
+  pnl_pct?: number;
+}
+
 export interface FloorStatus {
   running: boolean;
   market?: MarketInfo;

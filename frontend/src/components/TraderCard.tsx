@@ -7,7 +7,6 @@ import {
   formatSignedUsd,
   formatUsd,
   formatUsdCompact,
-  pnlPercent,
 } from "../lib/format";
 import { initials, traderTheme } from "../theme/traders";
 import Holdings from "./Holdings";
@@ -29,7 +28,12 @@ export default function TraderCard({ trader }: Props) {
 
   const pnl = account.total_profit_loss;
   const up = pnl >= 0;
-  const pct = pnlPercent(pnl);
+  // The cash balance is the SHARED Alpaca account's — every trader reports the
+  // same figure — so this trader's own footprint is just their positions.
+  const holdingsValue = account.total_portfolio_value - account.balance;
+  // Unrealized return on the capital this trader actually put into positions.
+  const costBasis = holdingsValue - pnl;
+  const pct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
   const positions = Object.values(account.holdings).filter((q) => q !== 0).length;
 
   const style = {
@@ -52,7 +56,8 @@ export default function TraderCard({ trader }: Props) {
 
       <div className="trader-value">
         <div>
-          <div className="big mono">{formatUsd(account.total_portfolio_value)}</div>
+          <div className="big mono">{formatUsd(holdingsValue)}</div>
+          <div className="sub muted">in positions</div>
         </div>
         <div className="pnl">
           <span className={`pct ${up ? "pnl-up" : "pnl-down"}`}>
@@ -72,7 +77,7 @@ export default function TraderCard({ trader }: Props) {
 
       <div className="trader-stats">
         <div className="cell">
-          <div className="k">Cash</div>
+          <div className="k">Cash (shared)</div>
           <div className="v mono">{formatUsdCompact(account.balance)}</div>
         </div>
         <div className="cell">
