@@ -1,12 +1,24 @@
+---
+title: Alpaca Trading Floor API
+emoji: 🚀
+colorFrom: red
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # 🤖 AI Trading Floor
 
 An autonomous multi-agent trading simulation where AI traders powered by different
 language models compete in the stock market. Each AI develops its own strategy and
 makes real-time decisions against a live Alpaca paper-trading account.
 
-The project is split into a **Python/FastAPI backend** (runs the agents + MCP tools
-and exposes a REST API) and a **React frontend** (the dashboard). They are deployed
-and run independently.
+The project is split into a **Python/FastAPI backend** (repo root — runs the agents +
+MCP tools and exposes a REST API) and a **React frontend** (`frontend/`, the dashboard).
+They are deployed and run independently: the backend deploys to Hugging Face Spaces
+(Docker) straight from this branch, and Cloudflare Pages builds the frontend from the
+`frontend/` subdirectory.
 
 ## 🏗️ Architecture
 
@@ -30,21 +42,20 @@ and run independently.
 ## 📂 Project structure
 
 ```
-7_mcp_alpaca_trading/
-├── backend/          # FastAPI service + trading floor + MCP servers
-│   ├── api.py            # FastAPI app (REST endpoints, CORS)
-│   ├── floor_control.py  # Start/stop the trading-floor background thread
-│   ├── trading_floor.py  # Scheduler — runs the agents every N minutes
-│   ├── traders.py        # Trader/Researcher agent construction
-│   ├── templates.py      # Agent prompts & personalities
-│   ├── accounts*.py      # Portfolio bookkeeping + MCP account server
-│   ├── market*.py        # Market-data + MCP market server
-│   ├── push_server.py    # Pushover notification MCP server
-│   ├── mcp_params.py     # MCP server wiring (Alpaca, market, push, researcher)
-│   ├── database.py       # SQLite persistence (accounts, logs, market cache)
-│   ├── Dockerfile  requirements.txt  .env.example
-│   └── README.md         # Backend setup, env vars, endpoint reference
-└── frontend/         # React + TypeScript dashboard (Vite)
+./                    # FastAPI backend at the repo root (Hugging Face Space)
+├── api.py            # FastAPI app (REST endpoints, CORS)
+├── floor_control.py  # Start/stop the trading-floor background thread
+├── trading_floor.py  # Scheduler — runs the agents every N minutes
+├── traders.py        # Trader/Researcher agent construction
+├── templates.py      # Agent prompts & personalities
+├── accounts*.py      # Portfolio bookkeeping + MCP account server
+├── market*.py        # Market-data + MCP market server
+├── push_server.py    # Pushover notification MCP server
+├── mcp_params.py     # MCP server wiring (Alpaca, market, push, researcher)
+├── database.py       # SQLite persistence (accounts, logs, market cache)
+├── Dockerfile  requirements.txt  .env.example
+├── BACKEND.md        # Backend setup, env vars, endpoint reference
+└── frontend/         # React + TypeScript dashboard (Vite → Cloudflare Pages)
     ├── src/
     │   ├── api/         # Typed fetch client + backend payload types
     │   ├── components/  # TraderCard, PortfolioChart, SummaryBar, FloorControl…
@@ -69,16 +80,15 @@ In single-model mode (`USE_MANY_MODELS=false`) all four run on GPT-4.1 Mini.
 
 ## 🚀 Quick start
 
-### 1. Backend
+### 1. Backend (repo root)
 
 ```bash
-cd backend
 cp .env.example .env          # then fill in your keys
 pip install -r requirements.txt
 uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-API docs at `http://localhost:8000/docs`. See [`backend/README.md`](backend/README.md)
+API docs at `http://localhost:8000/docs`. See [`BACKEND.md`](BACKEND.md)
 for the full environment-variable reference and endpoint list.
 
 ### 2. Frontend
@@ -108,8 +118,8 @@ build/deploy notes.
 
 ## ⚙️ Configuration
 
-All configuration is via environment variables in `backend/.env` — see
-[`backend/.env.example`](backend/.env.example) for the complete annotated list
+All configuration is via environment variables in `.env` at the repo root — see
+[`.env.example`](.env.example) for the complete annotated list
 (Alpaca, LLM providers, market data, push notifications, trading cadence, CORS).
 
 ## ⚖️ Disclaimer

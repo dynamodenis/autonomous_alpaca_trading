@@ -28,7 +28,7 @@ backend at `http://localhost:8000` (see `vite.config.ts`), so **make sure the
 backend is running** first:
 
 ```bash
-cd ../backend
+cd ..            # backend lives at the repo root
 uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
