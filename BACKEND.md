@@ -39,6 +39,7 @@ pip install -r requirements.txt
 | `RUN_EVEN_WHEN_MARKET_IS_CLOSED` | Interval mode only: `true`/`false` (default `false`) |
 | `USE_MANY_MODELS` | `true`/`false` (default `false`) |
 | `FRONTEND_ORIGINS` | Comma-separated CORS origins (default `*`) |
+| `INITIAL_EQUITY` | Optional: the Alpaca account's true pre-trading value, used as the P/L baseline. If unset, the account equity is recorded the first time `/api/portfolio` runs |
 
 ## Run
 
@@ -61,6 +62,7 @@ docker run --env-file .env -p 8000:8000 trading-floor-backend
 | `GET`  | `/api/traders/{name}` | Account snapshot for one trader |
 | `GET`  | `/api/traders/{name}/logs?limit=13` | Recent log entries (oldest → newest) |
 | `GET`  | `/api/dashboard?log_limit=13` | All traders' accounts + logs in one payload |
+| `GET`  | `/api/portfolio` | The shared Alpaca account: live equity, cash, positions, and P/L vs. the recorded initial equity |
 | `GET`  | `/api/floor/status` | `{ running: bool, market: { ok, is_open, next_open, next_close } }` |
 | `POST` | `/api/floor/start` | Start the trading floor thread |
 | `POST` | `/api/floor/stop` | Stop the trading floor thread |

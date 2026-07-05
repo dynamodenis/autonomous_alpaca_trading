@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api/client";
-import type { DashboardTrader } from "./api/types";
+import type { DashboardTrader, PortfolioSummary } from "./api/types";
 import FloorControl from "./components/FloorControl";
 import SummaryBar from "./components/SummaryBar";
 import TraderCard from "./components/TraderCard";
@@ -20,19 +20,28 @@ export default function App() {
 
   // Only poll the dashboard while trades can actually happen: the floor is
   // running AND the market is open. Otherwise the data can't change.
-  const fetchDashboard = useCallback(() => api.getDashboard(), []);
+  // The Alpaca portfolio summary is best-effort — a brokerage hiccup must
+  // never blank out the trader cards.
+  const fetchDashboard = useCallback(async () => {
+    const [traders, portfolio] = await Promise.all([
+      api.getDashboard(),
+      api.getPortfolio().catch((): PortfolioSummary | null => null),
+    ]);
+    return { traders, portfolio };
+  }, []);
   const {
-    data: traders,
+    data,
     error,
     loading,
     refreshing,
     lastUpdated,
     refresh,
-  } = usePolling<DashboardTrader[]>(
-    fetchDashboard,
-    POLL_INTERVAL_MS,
-    running && marketOpen,
-  );
+  } = usePolling<{
+    traders: DashboardTrader[];
+    portfolio: PortfolioSummary | null;
+  }>(fetchDashboard, POLL_INTERVAL_MS, running && marketOpen);
+  const traders = data?.traders ?? null;
+  const portfolio = data?.portfolio ?? null;
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(
     null,
   );
@@ -170,7 +179,7 @@ export default function App() {
 
       {traders && (
         <>
-          <SummaryBar traders={traders} />
+          <SummaryBar traders={traders} portfolio={portfolio} />
           <div className="section-title">
             <h2>Traders</h2>
             <span className="count">{traders.length} competing</span>

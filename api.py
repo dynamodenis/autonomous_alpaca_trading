@@ -11,15 +11,17 @@ servers (`uv run accounts_server.py`, `file:./memory/{name}.db`) resolve:
 
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from accounts import Account
-from database import read_log
+from database import read_log, read_meta, write_meta
 from floor_control import is_floor_running, start_trading_floor, stop_trading_floor
 from reconcile import (
+    fetch_portfolio_snapshot_blocking,
     reconcile_all_blocking,
     sync_balances_from_alpaca,
     sync_balances_from_alpaca_blocking,
@@ -133,6 +135,47 @@ def get_dashboard(log_limit: int = 13) -> list[dict]:
         }
         for trader in TRADERS
     ]
+
+
+@app.get("/api/portfolio")
+def portfolio_summary() -> dict:
+    """The real combined portfolio: the single shared Alpaca account.
+
+    All four traders trade against one Alpaca account, so summing their
+    per-trader values counts the same cash four times. This endpoint returns
+    the live account equity plus a baseline recorded the first time we see
+    the account, so overall P/L = equity - initial_equity.
+
+    Override the baseline with the INITIAL_EQUITY env var (e.g. the account's
+    true pre-trading value) — it wins over the stored one on every restart.
+    """
+    snapshot = fetch_portfolio_snapshot_blocking()
+
+    baseline = read_meta("initial_equity")
+    env_initial = os.getenv("INITIAL_EQUITY")
+    if env_initial:
+        try:
+            value = float(env_initial)
+            if not baseline or baseline.get("equity") != value:
+                baseline = {"equity": value, "recorded_at": datetime.now(timezone.utc).isoformat(), "source": "env"}
+                write_meta("initial_equity", baseline)
+        except ValueError:
+            print(f"[portfolio] Ignoring unusable INITIAL_EQUITY={env_initial!r}")
+    elif baseline is None and snapshot.get("ok"):
+        baseline = {"equity": snapshot["equity"], "recorded_at": datetime.now(timezone.utc).isoformat(), "source": "first_snapshot"}
+        write_meta("initial_equity", baseline)
+
+    initial = baseline.get("equity") if baseline else None
+    result = {
+        **snapshot,
+        "initial_equity": initial,
+        "initial_recorded_at": baseline.get("recorded_at") if baseline else None,
+    }
+    if snapshot.get("ok") and initial:
+        pnl = snapshot["equity"] - initial
+        result["pnl"] = pnl
+        result["pnl_pct"] = pnl / initial * 100
+    return result
 
 
 @app.get("/api/floor/status")
