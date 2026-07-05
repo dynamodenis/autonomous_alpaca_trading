@@ -61,7 +61,7 @@ docker run --env-file .env -p 8000:8000 trading-floor-backend
 | `GET`  | `/api/traders/{name}` | Account snapshot for one trader |
 | `GET`  | `/api/traders/{name}/logs?limit=13` | Recent log entries (oldest → newest) |
 | `GET`  | `/api/dashboard?log_limit=13` | All traders' accounts + logs in one payload |
-| `GET`  | `/api/floor/status` | `{ running: bool }` |
+| `GET`  | `/api/floor/status` | `{ running: bool, market: { ok, is_open, next_open, next_close } }` |
 | `POST` | `/api/floor/start` | Start the trading floor thread |
 | `POST` | `/api/floor/stop` | Stop the trading floor thread |
 

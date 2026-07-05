@@ -14,10 +14,16 @@ interface PollingState<T> {
 /**
  * Polls an async fetcher on an interval. Keeps the previous data visible while
  * refreshing (no flicker) and survives transient errors without wiping the UI.
+ *
+ * When `enabled` is false the interval is suspended, but the fetcher still
+ * runs once on mount and once on every enabled/disabled transition, so the
+ * UI always holds the latest state (e.g. the final snapshot after the
+ * trading floor stops).
  */
 export function usePolling<T>(
   fetcher: () => Promise<T>,
   intervalMs: number,
+  enabled = true,
 ): PollingState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -47,12 +53,17 @@ export function usePolling<T>(
   useEffect(() => {
     mountedRef.current = true;
     run();
+    if (!enabled) {
+      return () => {
+        mountedRef.current = false;
+      };
+    }
     const id = window.setInterval(run, intervalMs);
     return () => {
       mountedRef.current = false;
       window.clearInterval(id);
     };
-  }, [run, intervalMs]);
+  }, [run, intervalMs, enabled]);
 
   return {
     data,
