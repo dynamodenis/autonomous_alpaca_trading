@@ -3,7 +3,7 @@
 Exposes the trading floor's data (accounts, logs) and lifecycle controls
 (start/stop) as a REST API for the React frontend. Replaces the old Gradio UI.
 
-Run from the `backend/` directory so the cwd-relative paths used by the MCP
+Run from the repo root so the cwd-relative paths used by the MCP
 servers (`uv run accounts_server.py`, `file:./memory/{name}.db`) resolve:
 
     uvicorn api:app --host 0.0.0.0 --port 8000

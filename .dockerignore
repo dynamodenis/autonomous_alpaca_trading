@@ -1,0 +1,19 @@
+# Frontend is deployed separately (Cloudflare Pages) — keep it out of the backend image
+frontend/
+
+# Git / docs
+.git/
+.gitignore
+README.md
+BACKEND.md
+
+# Local dev artifacts
+.env
+.env.local
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime state (recreated in the container)
+*.db
+memory/

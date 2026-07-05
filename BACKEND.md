@@ -1,21 +1,11 @@
----
-title: Alpaca Trading Floor API
-emoji: 🚀
-colorFrom: red
-colorTo: indigo
-sdk: docker
-app_port: 8000
-pinned: false
----
-
 # AI Trading Floor — Backend
 
 FastAPI service that runs the autonomous multi-agent trading floor and exposes
 its data and lifecycle controls as a REST API for the React frontend.
 
-> Run all commands from this `backend/` directory. The MCP servers are spawned
-> with cwd-relative paths (`uv run accounts_server.py`, `file:./memory/{name}.db`),
-> so the working directory must be `backend/`.
+> Run all commands from the repo root. The MCP servers are spawned with
+> cwd-relative paths (`uv run accounts_server.py`, `file:./memory/{name}.db`),
+> so the working directory must be the repo root.
 
 ## Setup
 
@@ -56,7 +46,7 @@ pip install -r requirements.txt
 uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Or via Docker (build with this directory as context):
+Or via Docker (build from the repo root; `.dockerignore` keeps `frontend/` out of the image):
 
 ```bash
 docker build -t trading-floor-backend .

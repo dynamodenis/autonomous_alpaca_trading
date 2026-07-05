@@ -6,7 +6,6 @@ __pycache__/
 # Secrets — never commit real env files (.env.example is fine)
 .env
 .env.local
-backend/.env
 frontend/.env
 frontend/.env.local
 
@@ -15,11 +14,9 @@ frontend/.env.local
 
 # Per-trader memory stores
 memory/
-backend/memory/
 
 # Node / frontend build artifacts
 node_modules/
 frontend/dist/
 
 community_contributions/
-./backend/.venv
