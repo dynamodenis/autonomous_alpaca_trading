@@ -137,7 +137,9 @@ def get_dashboard(log_limit: int = 13) -> list[dict]:
 
 @app.get("/api/floor/status")
 def floor_status() -> dict:
-    return {"running": is_floor_running()}
+    # Include the market clock so the frontend can pause polling outside
+    # trading hours instead of hammering the API around the clock.
+    return {"running": is_floor_running(), "market": _market_info()}
 
 
 def _safe_sync() -> dict | None:

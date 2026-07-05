@@ -45,9 +45,10 @@ export interface DashboardTrader extends Trader {
 
 export interface FloorStatus {
   running: boolean;
+  market?: MarketInfo;
 }
 
-/** Alpaca market clock, as surfaced by POST /api/floor/start. */
+/** Alpaca market clock, as surfaced by GET /api/floor/status and POST /api/floor/start. */
 export interface MarketInfo {
   ok: boolean;
   is_open?: boolean;
@@ -73,7 +74,6 @@ export interface BalanceSync {
 
 export interface FloorControlResult extends FloorStatus {
   message: string;
-  market?: MarketInfo;
   balance_sync?: BalanceSync;
 }
 

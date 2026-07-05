@@ -9,10 +9,17 @@ import { usePolling } from "./hooks/usePolling";
 import { relativeTime } from "./lib/format";
 
 const POLL_INTERVAL_MS = Number(
-  import.meta.env.VITE_POLL_INTERVAL_MS ?? 8000,
+  import.meta.env.VITE_POLL_INTERVAL_MS ?? 600_000,
 );
 
 export default function App() {
+  const [running, setRunning] = useState(false);
+  // Assume open until the status endpoint says otherwise, so a failing
+  // market-clock lookup never freezes the dashboard while the floor runs.
+  const [marketOpen, setMarketOpen] = useState(true);
+
+  // Only poll the dashboard while trades can actually happen: the floor is
+  // running AND the market is open. Otherwise the data can't change.
   const fetchDashboard = useCallback(() => api.getDashboard(), []);
   const {
     data: traders,
@@ -21,20 +28,25 @@ export default function App() {
     refreshing,
     lastUpdated,
     refresh,
-  } = usePolling<DashboardTrader[]>(fetchDashboard, POLL_INTERVAL_MS);
-
-  const [running, setRunning] = useState(false);
+  } = usePolling<DashboardTrader[]>(
+    fetchDashboard,
+    POLL_INTERVAL_MS,
+    running && marketOpen,
+  );
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(
     null,
   );
 
-  // Keep floor status in sync independently of the heavier dashboard payload.
+  // Lightweight heartbeat: keeps floor status + market clock in sync so we
+  // notice when the floor starts or the market opens and resume polling.
   useEffect(() => {
     let active = true;
     const sync = async () => {
       try {
         const status = await api.getFloorStatus();
-        if (active) setRunning(status.running);
+        if (!active) return;
+        setRunning(status.running);
+        if (status.market?.ok) setMarketOpen(status.market.is_open ?? true);
       } catch {
         /* dashboard error banner already covers connectivity */
       }
