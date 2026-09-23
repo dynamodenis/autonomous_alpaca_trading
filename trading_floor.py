@@ -77,6 +77,19 @@ def create_traders() -> List[Trader]:
     return traders
 
 
+async def run_traders_in_turn(traders: List[Trader], should_stop=lambda: False):
+    """Run traders one after another, not concurrently.
+
+    They share one Alpaca account, so each must see the cash and positions left
+    by the previous trader's fills; running at once let all of them spend the
+    same cash. Each is told how many traders (itself included) still share it.
+    """
+    for i, trader in enumerate(traders):
+        if should_stop():
+            break
+        await trader.run(traders_remaining=len(traders) - i)
+
+
 async def run_every_n_minutes():
     """
     Runs trading agents every N minutes, cooperatively stopping when signaled.
@@ -113,7 +126,7 @@ async def run_every_n_minutes():
         if RUN_EVEN_WHEN_MARKET_IS_CLOSED or alpaca_is_market_open():
             print("Running trade cycle...")
             # Run agents
-            await asyncio.gather(*[trader.run() for trader in traders])
+            await run_traders_in_turn(traders, async_stop_event.is_set)
         else:
             print("Market is closed, skipping run")
 
@@ -185,7 +198,7 @@ async def run_on_open_close():
 
     async def run_cycle(label: str, is_open: bool):
         print(f"[scheduler] {label} trigger — running trade cycle (market_open={is_open})")
-        await asyncio.gather(*[trader.run() for trader in traders])
+        await run_traders_in_turn(traders, async_stop_event.is_set)
 
     # Kickoff: run one cycle immediately on start so clicking "Start" executes
     # right away — but ONLY while the market is open. Running a full research+trade

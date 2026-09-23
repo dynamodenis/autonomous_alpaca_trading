@@ -30,6 +30,8 @@ pip install -r requirements.txt
 | `JEV_MODEL` | Pinned JEV release (default `typesafe/jev-1.13-20260917`) |
 | `JEV_MIN_APPROVE` | Minimum P(approve) for an order to execute (default `0.6`) |
 | `JEV_FAIL_OPEN` | Let orders through when the JEV call itself fails (default `false`) |
+| `FUNDING_ROTATE_BELOW` | Cash/equity below which traders must sell before buying (default `0.10`); negative cash always means sells only |
+| `FUNDING_DEPLOY_ABOVE` | Cash/equity above which traders are told to deploy cash (default `0.30`) |
 | `SEARCH_PROVIDER` | Researcher web search provider: `tavily` (default) or `brave` |
 | `TAVILY_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=tavily`, the default) |
 | `BRAVE_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=brave`) |

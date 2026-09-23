@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 import alpaca_exec
 import jev
 from accounts import Account
+from funding import funding_mode
 from symbols import normalize_symbol
 
 mcp = FastMCP("alpaca_exec_server")
@@ -50,18 +51,14 @@ def _record_fill(account_name: str, side: str, symbol: str, qty: float, price: f
 
 
 async def _jev_gate(
-    *, account_name: str, asset_class: str, symbol: str, qty: float, side: str,
-    order_type: str, limit_price: float | None, rationale: str,
+    *, account_name: str, account: dict, asset_class: str, symbol: str, qty: float,
+    side: str, order_type: str, limit_price: float | None, rationale: str,
 ) -> dict:
     """Have JEV approve or reject the proposed order, and log the verdict."""
     try:
         strategy = Account.get(account_name).strategy
     except Exception:  # noqa: BLE001
         strategy = None
-    try:
-        account = await alpaca_exec.get_account_info()
-    except Exception as e:  # noqa: BLE001
-        account = {"error": str(e)}
     try:
         canonical = normalize_symbol(symbol)
         position = next(
@@ -80,6 +77,10 @@ async def _jev_gate(
         },
         "rationale": rationale or "(none given)",
         "account": account,
+        "funding_mode": (
+            funding_mode(_to_float(account.get("cash")), _to_float(account.get("equity")))
+            if "cash" in account else "UNKNOWN"
+        ),
         "current_position": position,
     })
     decision = "APPROVED" if verdict["approved"] else "REJECTED"
@@ -99,11 +100,27 @@ async def _place_and_log(
     `fill` (final status) and `logged` (the SQLite write outcome). When JEV is
     enabled, the order is only submitted if JEV approves it.
     """
+    try:
+        account = await alpaca_exec.get_account_info()
+    except Exception as e:  # noqa: BLE001
+        account = {"error": str(e)}
+
+    # Hard rule, independent of the model and JEV: never buy while the shared
+    # account's cash is negative (i.e. already borrowing on margin).
+    if side.lower() == "buy" and "cash" in account and _to_float(account["cash"]) < 0:
+        if account_name:
+            Account.write_log(account_name, "jev", f"BLOCKED BUY {qty:g} {symbol}: cash is negative")
+        return {
+            "ok": False, "retryable": False, "rejected_by": "funding",
+            "error": f"Buy blocked: the account's cash is negative (${_to_float(account['cash']):,.2f}). "
+                     "Sell positions to raise cash first; do not retry buys this cycle.",
+        }
+
     verdict = None
     if jev.JEV_ENABLED and account_name:
         verdict = await _jev_gate(
-            account_name=account_name, asset_class=asset_class, symbol=symbol, qty=qty,
-            side=side, order_type=order_type, limit_price=limit_price, rationale=rationale,
+            account_name=account_name, account=account, asset_class=asset_class, symbol=symbol,
+            qty=qty, side=side, order_type=order_type, limit_price=limit_price, rationale=rationale,
         )
         if not verdict["approved"]:
             return {

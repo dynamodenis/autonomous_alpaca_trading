@@ -174,13 +174,14 @@ class Account(BaseModel):
             self.holdings[symbol] = self.holdings.get(symbol, 0) + quantity
             signed_quantity = quantity
         else:
-            if self.holdings.get(symbol, 0) < quantity:
-                raise ValueError(
-                    f"Cannot sell {quantity} shares of {symbol}. Not enough shares held."
-                )
-            self.holdings[symbol] -= quantity
-            if self.holdings[symbol] == 0:
-                del self.holdings[symbol]
+            # The fill already happened on the shared Alpaca account, which is the
+            # source of truth; traders may sell positions bought before their
+            # ledger began. Record the sale and draw down only what the ledger holds.
+            held = self.holdings.get(symbol, 0)
+            if held <= quantity:
+                self.holdings.pop(symbol, None)
+            else:
+                self.holdings[symbol] = held - quantity
             signed_quantity = -quantity
 
         transaction = Transaction(

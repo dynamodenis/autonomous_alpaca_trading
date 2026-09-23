@@ -16,6 +16,7 @@ from templates import (
     research_tool,
 )
 from mcp_params import trader_mcp_server_params, researcher_mcp_server_params
+from funding import funding_snapshot, funding_brief, UNAVAILABLE_BRIEF
 
 load_dotenv(override=True)
 
@@ -93,6 +94,8 @@ class Trader:
         self.agent = None
         self.model_name = model_name
         self.do_trade = True
+        # This trader plus those still to run this cycle; splits the shared cash.
+        self.traders_remaining = 1
 
     async def create_agent(self, trader_mcp_servers, researcher_mcp_servers) -> Agent:
         # Researcher runs on its own cheap model, not the trader's.
@@ -107,25 +110,38 @@ class Trader:
         return self.agent
 
     async def get_account_report(self) -> str:
+        """This trader's own recent trades from its ledger.
+
+        Only the transactions are passed on: the ledger's balance and holdings do
+        not reflect the shared Alpaca account (see funding.py), which the prompt
+        gets live instead.
+        """
         account = await read_accounts_resource(self.name)
-        account_json = json.loads(account)
-        account_json.pop("portfolio_value_time_series", None)
-        # Keep only recent transactions (last 10)
-        transactions = account_json.get("transactions", [])
-        if len(transactions) > 10:
-            account_json["transactions"] = transactions[-10:]
-            account_json["total_transactions"] = len(transactions)  # Track total count
-        
-        return json.dumps(account_json)
+        transactions = json.loads(account).get("transactions", [])
+        return json.dumps({"recent_trades": transactions[-10:], "total_trades": len(transactions)})
+
+    async def get_funding_brief(self) -> str:
+        try:
+            snap = await funding_snapshot(self.traders_remaining)
+        except Exception as e:  # noqa: BLE001
+            print(f"[funding] {self.name}: live account unavailable: {e}")
+            return UNAVAILABLE_BRIEF
+        Account.write_log(
+            self.name, "account",
+            f"Funding {snap['mode']}: cash ${snap['cash']:,.0f}, leverage {snap['leverage']}x, "
+            f"sell target ${snap['sell_target']:,.0f}, buy budget ${snap['buy_budget']:,.0f}",
+        )
+        return funding_brief(snap)
 
     async def run_agent(self, trader_mcp_servers, researcher_mcp_servers):
         self.agent = await self.create_agent(trader_mcp_servers, researcher_mcp_servers)
         account = await self.get_account_report()
         strategy = await read_strategy_resource(self.name)
+        funding = await self.get_funding_brief()
         message = (
-            trade_message(self.name, strategy, account)
+            trade_message(self.name, strategy, account, funding)
             if self.do_trade
-            else rebalance_message(self.name, strategy, account)
+            else rebalance_message(self.name, strategy, account, funding)
         )
         result = await Runner.run(self.agent, message, max_turns=MAX_TURNS)
         self._log_run_cost(result)
@@ -180,7 +196,8 @@ class Trader:
         with trace(trace_name, trace_id=trace_id):
             await self.run_with_mcp_servers()
 
-    async def run(self):
+    async def run(self, traders_remaining: int = 1):
+        self.traders_remaining = traders_remaining
         try:
             await self.run_with_trace()
         except Exception as e:

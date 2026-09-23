@@ -79,6 +79,18 @@ These tools are IDEMPOTENT and retry transient failures for you. Read the result
                     The rejection is final: do NOT resubmit the same order. You may
                     propose a different, better-justified or smaller order instead.
 
+==============================
+      FUNDING DISCIPLINE
+==============================
+
+You share ONE Alpaca account with other traders. Each cycle you are given a
+FUNDING MODE computed from the live account — follow it exactly:
+    • RAISE_CASH → sell only (about the sell target shown); buys are blocked.
+    • ROTATE     → to buy, first sell a weaker position; buy only after it fills.
+    • NORMAL / DEPLOY → buy within your stated budget; sell broken theses.
+Cash is your budget, not margin buying_power. Never borrow to buy. Estimate cost
+as qty × current price before every buy, and place sells before buys.
+
 Every order is reviewed by JEV before it executes, using your `rationale`. Make the
 rationale specific and evidence-based (the catalyst, the data, why this size) — a
 vague rationale will be rejected.
@@ -120,8 +132,19 @@ Trade professionally.
 """
 
 
-def trade_message(name, strategy, account):
-    return f"""Based on your investment strategy, look for new opportunities.
+def _funding_section(funding: str) -> str:
+    return f"""==============================
+   FUNDING — READ FIRST (overrides the rest of this task)
+==============================
+{funding}
+"""
+
+
+def trade_message(name, strategy, account, funding):
+    return f"""{_funding_section(funding)}
+TASK: Based on your investment strategy and the FUNDING MODE above, find the best
+trades for this cycle. In RAISE_CASH mode that means choosing what to sell, not
+looking for new buys.
 
 Use the research tool to find news and opportunities consistent with your strategy.
 Use tools to research stock prices, crypto, options and company information. {note}
@@ -132,33 +155,40 @@ for the fill, AND records it to your account automatically:
    place_crypto_order(account_name="{name}", symbol=..., qty=..., side=..., rationale=...)
 These are idempotent — never resubmit the same order. Do NOT call any separate
 logging or fill tool; check `ok`, `fill.status`, and `logged.ok` in the result.
+Place sells before buys, and size every buy to your budget (qty × price).
 
 Your investment strategy:
 {strategy}
 
-Current account:
+Your own recent trades:
 {account}
 
 Current datetime: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 Your account name: {name}
 
-Now: research → decide → trade (one call each) → send notification → provide 2-3 sentence appraisal.
+Now: research → decide (within the funding rules) → sells, then buys (one call each)
+→ send notification → provide 2-3 sentence appraisal.
 """
 
-def rebalance_message(name, strategy, account):
-    return f"""Based on your investment strategy, you should now examine your portfolio and decide if you need to rebalance.
-Use the research tool to find news and opportunities affecting your existing portfolio.
-Use the tools to research stock price and other company information affecting your existing portfolio. {note}
-Finally, make you decision, then execute trades using the tools as needed.
-You do not need to identify new investment opportunities at this time; you will be asked to do so later.
-Just rebalance your portfolio based on your strategy as needed.
+
+def rebalance_message(name, strategy, account, funding):
+    return f"""{_funding_section(funding)}
+TASK: Examine the open positions above and rebalance according to your strategy and
+the FUNDING MODE. You do not need to find new opportunities now; you will be asked later.
+
+Use the research tool to find news affecting the existing positions.
+Use the tools to research stock prices and company information for them. {note}
+Then decide and execute trades: sells first, then any buys within your budget.
+
 Your investment strategy:
 {strategy}
 You also have a tool to change your strategy if you wish; you can decide at any time that you would like to evolve or even switch your strategy.
-Here is your current account:
+
+Your own recent trades:
 {account}
-Here is the current datetime:
-{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-Now, carry out analysis, make your decision and execute trades. Your account name is {name}.
-After you've executed your trades, send a push notification with a brief sumnmary of trades and the health of the portfolio, then
+
+Current datetime: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Your account name: {name}
+
+After you've executed your trades, send a push notification with a brief summary of trades and the health of the portfolio, then
 respond with a brief 2-3 sentence appraisal of your portfolio and its outlook."""

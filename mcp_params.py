@@ -47,8 +47,8 @@ alpaca_env = {
     # The order server calls the JEV decision gate (jev.py) via OpenRouter.
     "OPENROUTER_API_KEY": os.getenv("OPENROUTER_API_KEY", ""),
 }
-# Pass JEV_* settings through only when set, so jev.py's defaults apply otherwise.
-alpaca_env.update({k: v for k, v in os.environ.items() if k.startswith("JEV_")})
+# Pass JEV_*/FUNDING_* settings through only when set, so the modules' defaults apply otherwise.
+alpaca_env.update({k: v for k, v in os.environ.items() if k.startswith(("JEV_", "FUNDING_"))})
 
 polygon_api_key = os.getenv("POLYGON_API_KEY")
 
