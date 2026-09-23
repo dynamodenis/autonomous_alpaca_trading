@@ -28,7 +28,7 @@ MAX_TURNS = 10
 # The Researcher sub-agent does web search + summarization, which is cheap,
 # high-volume work — so it runs on its own (cheaper) model, independent of the
 # trader's model. Override with RESEARCHER_MODEL (an OpenRouter "provider/model" id).
-RESEARCHER_MODEL = os.getenv("RESEARCHER_MODEL", "openai/gpt-4.1-mini")
+RESEARCHER_MODEL = os.getenv("RESEARCHER_MODEL", "deepseek/deepseek-v4-flash")
 
 # Every trader runs through OpenRouter, which gives us access to models from
 # OpenAI, DeepSeek, Google, xAI, etc. behind a single API key. Model names use

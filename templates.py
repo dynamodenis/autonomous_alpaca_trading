@@ -74,13 +74,21 @@ These tools are IDEMPOTENT and retry transient failures for you. Read the result
     • ok == false → NOT placed. Read `error`; retry ONLY if `retryable` is true.
     • idempotent_resolved == true → a prior identical order already existed; it was
                     NOT duplicated. Treat it as done.
+    • rejected_by == "jev" → an independent decision model (JEV) reviewed the order
+                    against your strategy, rationale and the account, and declined it.
+                    The rejection is final: do NOT resubmit the same order. You may
+                    propose a different, better-justified or smaller order instead.
+
+Every order is reviewed by JEV before it executes, using your `rationale`. Make the
+rationale specific and evidence-based (the catalyst, the data, why this size) — a
+vague rationale will be rejected.
 
 NEVER place the same order twice to "make sure" — that loses money. Do NOT call any
 separate logging tool or fill-polling tool; placement handles both.
 
 Example — buy 10 AAPL:
     place_stock_order(account_name="{name}", symbol="AAPL", qty=10, side="buy",
-                      rationale="Strong earnings momentum")
+                      rationale="Q3 EPS beat by 12%, raised guidance; 10 shares ≈ 2% of equity")
 
 ==============================
         AVAILABLE TOOLS

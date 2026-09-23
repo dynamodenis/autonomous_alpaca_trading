@@ -10,6 +10,7 @@ instructions read naturally, but their behaviour is now hardened.
 from mcp.server.fastmcp import FastMCP
 
 import alpaca_exec
+import jev
 from accounts import Account
 from symbols import normalize_symbol
 
@@ -48,6 +49,44 @@ def _record_fill(account_name: str, side: str, symbol: str, qty: float, price: f
         return {"ok": False, "error": str(e)}
 
 
+async def _jev_gate(
+    *, account_name: str, asset_class: str, symbol: str, qty: float, side: str,
+    order_type: str, limit_price: float | None, rationale: str,
+) -> dict:
+    """Have JEV approve or reject the proposed order, and log the verdict."""
+    try:
+        strategy = Account.get(account_name).strategy
+    except Exception:  # noqa: BLE001
+        strategy = None
+    try:
+        account = await alpaca_exec.get_account_info()
+    except Exception as e:  # noqa: BLE001
+        account = {"error": str(e)}
+    try:
+        canonical = normalize_symbol(symbol)
+        position = next(
+            (p for p in await alpaca_exec.get_positions() if normalize_symbol(p["symbol"]) == canonical),
+            None,
+        )
+    except Exception as e:  # noqa: BLE001
+        position = {"error": str(e)}
+
+    verdict = await jev.judge_order({
+        "trader": account_name,
+        "strategy": strategy,
+        "proposed_order": {
+            "side": side, "symbol": symbol, "qty": qty, "asset_class": asset_class,
+            "order_type": order_type, "limit_price": limit_price,
+        },
+        "rationale": rationale or "(none given)",
+        "account": account,
+        "current_position": position,
+    })
+    decision = "APPROVED" if verdict["approved"] else "REJECTED"
+    Account.write_log(account_name, "jev", f"{decision} {side.upper()} {qty:g} {symbol}: {verdict['reason']}")
+    return verdict
+
+
 async def _place_and_log(
     *, asset_class: str, account_name: str | None, rationale: str,
     symbol: str, qty: float, side: str, order_type: str,
@@ -57,13 +96,29 @@ async def _place_and_log(
 
     Collapses place -> await fill -> log into a single, guaranteed step so the
     trader can never forget to record a buy/sell. Returns the order result plus
-    `fill` (final status) and `logged` (the SQLite write outcome).
+    `fill` (final status) and `logged` (the SQLite write outcome). When JEV is
+    enabled, the order is only submitted if JEV approves it.
     """
+    verdict = None
+    if jev.JEV_ENABLED and account_name:
+        verdict = await _jev_gate(
+            account_name=account_name, asset_class=asset_class, symbol=symbol, qty=qty,
+            side=side, order_type=order_type, limit_price=limit_price, rationale=rationale,
+        )
+        if not verdict["approved"]:
+            return {
+                "ok": False, "retryable": False, "rejected_by": "jev", "jev": verdict,
+                "error": f"Order rejected by the JEV decision gate: {verdict['reason']}. "
+                         "Do not resubmit this order.",
+            }
+
     res = await alpaca_exec.submit_order(
         symbol=symbol, qty=qty, side=side, asset_class=asset_class,
         order_type=order_type, limit_price=limit_price,
         time_in_force=time_in_force, client_order_id=client_order_id,
     )
+    if verdict:
+        res["jev"] = verdict
     if not res.get("ok") or not account_name:
         return res
 

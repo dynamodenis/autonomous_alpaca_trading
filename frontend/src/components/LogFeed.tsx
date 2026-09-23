@@ -9,7 +9,7 @@ interface Props {
 function typeClass(type: string): string {
   const t = type.toLowerCase();
   if (t.includes("error") || t.includes("fail")) return "error";
-  if (t.includes("account") || t.includes("trade")) return "account";
+  if (t.includes("account") || t.includes("trade") || t === "jev") return "account";
   if (t.includes("agent") || t.includes("response")) return "agent";
   return "trace";
 }

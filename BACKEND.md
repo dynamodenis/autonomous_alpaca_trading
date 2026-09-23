@@ -23,9 +23,13 @@ pip install -r requirements.txt
 | `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` | Alpaca brokerage (paper) credentials |
 | `ALPACA_PAPER` | `true` (default) for paper trading |
 | `OPENROUTER_API_KEY` | Required — all traders + researcher run through OpenRouter |
-| `TRADER_MODEL` | Model for all traders when `USE_MANY_MODELS=false` (default `openai/gpt-4.1-mini`) |
+| `TRADER_MODEL` | Model for all traders when `USE_MANY_MODELS=false` (default `deepseek/deepseek-v4-flash`) |
 | `TRADER_MODELS` | Comma-separated models (one per trader, in order) when `USE_MANY_MODELS=true` |
-| `RESEARCHER_MODEL` | Cheap model for the Researcher sub-agent (default `openai/gpt-4.1-mini`) |
+| `RESEARCHER_MODEL` | Cheap model for the Researcher sub-agent (default `deepseek/deepseek-v4-flash`) |
+| `JEV_ENABLED` | Gate every order through the JEV decision model (default `true`) |
+| `JEV_MODEL` | Pinned JEV release (default `typesafe/jev-1.13-20260917`) |
+| `JEV_MIN_APPROVE` | Minimum P(approve) for an order to execute (default `0.6`) |
+| `JEV_FAIL_OPEN` | Let orders through when the JEV call itself fails (default `false`) |
 | `SEARCH_PROVIDER` | Researcher web search provider: `tavily` (default) or `brave` |
 | `TAVILY_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=tavily`, the default) |
 | `BRAVE_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=brave`) |

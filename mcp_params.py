@@ -43,8 +43,12 @@ def _search_mcp_server() -> dict | None:
 alpaca_env = {
     "ALPACA_API_KEY": os.getenv("ALPACA_API_KEY"),
     "ALPACA_SECRET_KEY": os.getenv("ALPACA_SECRET_KEY"),
-    "ALPACA_PAPER": os.getenv("ALPACA_PAPER", "true") # Default to Paper
+    "ALPACA_PAPER": os.getenv("ALPACA_PAPER", "true"), # Default to Paper
+    # The order server calls the JEV decision gate (jev.py) via OpenRouter.
+    "OPENROUTER_API_KEY": os.getenv("OPENROUTER_API_KEY", ""),
 }
+# Pass JEV_* settings through only when set, so jev.py's defaults apply otherwise.
+alpaca_env.update({k: v for k, v in os.environ.items() if k.startswith("JEV_")})
 
 polygon_api_key = os.getenv("POLYGON_API_KEY")
 
