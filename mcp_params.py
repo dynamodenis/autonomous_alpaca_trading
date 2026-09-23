@@ -13,9 +13,17 @@ tavily_env = {"TAVILY_API_KEY": os.getenv("TAVILY_API_KEY")}
 SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "tavily").strip().lower()
 
 
-def _search_mcp_server() -> dict:
-    """MCP server config for the configured web-search provider."""
+def _search_mcp_server() -> dict | None:
+    """MCP server config for the configured web-search provider.
+
+    Returns None when the provider's API key is missing, so the Researcher runs
+    without web search (it still has fetch + memory) instead of the whole trader
+    run crashing on a None env value.
+    """
     if SEARCH_PROVIDER == "brave":
+        if not brave_env["BRAVE_API_KEY"]:
+            print("[mcp_params][WARN] BRAVE_API_KEY is not set; researcher runs without web search")
+            return None
         return {
             "command": "npx",
             "args": ["-y", "@modelcontextprotocol/server-brave-search"],
@@ -23,6 +31,9 @@ def _search_mcp_server() -> dict:
         }
     if SEARCH_PROVIDER != "tavily":
         print(f"[mcp_params] Unknown SEARCH_PROVIDER={SEARCH_PROVIDER!r}; defaulting to tavily")
+    if not tavily_env["TAVILY_API_KEY"]:
+        print("[mcp_params][WARN] TAVILY_API_KEY is not set; researcher runs without web search")
+        return None
     return {
         "command": "npx",
         "args": ["-y", "tavily-mcp"],
@@ -73,7 +84,7 @@ trader_mcp_server_params = [
 
 
 def researcher_mcp_server_params(name: str):
-    return [
+    servers = [
         {"command": "uvx", "args": ["mcp-server-fetch"]},
         _search_mcp_server(),
         {
@@ -82,3 +93,4 @@ def researcher_mcp_server_params(name: str):
             "env": {"LIBSQL_URL": f"file:./memory/{name}.db"},
         },
     ]
+    return [s for s in servers if s is not None]

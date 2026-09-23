@@ -31,6 +31,10 @@ from util import alpaca_get_clock
 
 load_dotenv(override=True)
 
+# Start the trading floor automatically when the server boots. Off by default so
+# a local `uvicorn` doesn't start trading on the shared paper account.
+AUTO_START_FLOOR = os.getenv("AUTO_START_FLOOR", "false").strip().lower() == "true"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,7 +46,17 @@ async def lifespan(app: FastAPI):
         print(f"[startup] Alpaca balance sync: {report}")
     except Exception as e:  # noqa: BLE001
         print(f"[startup] Alpaca balance sync failed: {e}")
+
+    # Hosted deployments (e.g. HF Spaces) restart/sleep without warning, which
+    # silently kills the floor thread. AUTO_START_FLOOR brings it back on boot.
+    if AUTO_START_FLOOR:
+        try:
+            print(f"[startup] AUTO_START_FLOOR: {start_trading_floor()}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[startup] Auto-start of trading floor failed: {e}")
     yield
+    if is_floor_running():
+        print(f"[shutdown] {stop_trading_floor()}")
 
 
 app = FastAPI(title="AI Trading Floor API", version="1.0.0", lifespan=lifespan)

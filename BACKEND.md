@@ -31,6 +31,7 @@ pip install -r requirements.txt
 | `BRAVE_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=brave`) |
 | `POLYGON_API_KEY`, `POLYGON_PLAN` | Market data (optional; falls back to random prices) |
 | `PUSHOVER_USER`, `PUSHOVER_TOKEN` | Push notifications |
+| `AUTO_START_FLOOR` | Start the trading floor when the server boots (default `false`; set `true` on HF Spaces so restarts resume trading) |
 | `RUN_SCHEDULE` | `open_close` (default — run at the open and before close) or `interval` |
 | `RUN_ON_START` | Run one cycle immediately when the floor starts (default `true`) |
 | `OPEN_DELAY_MINUTES` | Minutes after the open to run (default `0`) |
