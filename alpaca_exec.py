@@ -136,6 +136,7 @@ def _order_to_dict(order) -> dict:
         "side": g("side"),
         "type": g("order_type") or g("type"),
         "qty": g("qty"),
+        "notional": g("notional"),
         "filled_qty": g("filled_qty"),
         "filled_avg_price": g("filled_avg_price"),
         "limit_price": g("limit_price"),
@@ -150,28 +151,44 @@ def _order_to_dict(order) -> dict:
 
 async def submit_order(
     symbol: str,
-    qty: float,
+    qty: float | None,
     side: str,
     asset_class: str = "stock",
     order_type: str = "market",
     limit_price: float | None = None,
     time_in_force: str | None = None,
     client_order_id: str | None = None,
+    notional: float | None = None,
 ) -> dict:
     """Idempotently submit an order with retries.
 
-    Returns a dict with `ok` plus the order fields. If `ok` is False, `error`
-    explains why and `retryable` indicates whether a later attempt might work.
+    Size it with exactly one of `qty` (shares/units, fractions allowed) or
+    `notional` (a dollar amount, market orders only). Returns a dict with `ok`
+    plus the order fields. If `ok` is False, `error` explains why and
+    `retryable` indicates whether a later attempt might work.
     """
-    side_enum = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+    if (qty is None) == (notional is None):
+        return {"ok": False, "retryable": False, "error": "give exactly one of qty or notional"}
+    if (qty is not None and qty <= 0) or (notional is not None and notional <= 0):
+        return {"ok": False, "retryable": False, "error": "qty/notional must be positive"}
+    if notional is not None and order_type.lower() != "market":
+        return {"ok": False, "retryable": False, "error": "notional (dollar) orders must be market orders"}
 
-    # Crypto cannot use DAY; default it to GTC. Stocks default to DAY.
-    if time_in_force:
+    side_enum = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+    is_crypto = asset_class.lower() == "crypto"
+    fractional = notional is not None or (qty is not None and qty != int(qty))
+
+    # Crypto cannot use DAY; default it to GTC. Stocks default to DAY, and
+    # fractional/notional stock orders are only accepted as DAY orders.
+    if not is_crypto and fractional:
+        tif = TimeInForce.DAY
+    elif time_in_force:
         tif = TimeInForce(time_in_force.lower())
-    elif asset_class.lower() == "crypto":
+    elif is_crypto:
         tif = TimeInForce.GTC
     else:
         tif = TimeInForce.DAY
+    size = {"notional": round(notional, 2)} if notional is not None else {"qty": qty}
 
     # The idempotency key. Reused verbatim across every retry below so a hidden
     # success cannot become a duplicate order. Callers may pass their own stable
@@ -182,12 +199,12 @@ async def submit_order(
         if limit_price is None:
             return {"ok": False, "retryable": False, "error": "limit order requires limit_price"}
         req = LimitOrderRequest(
-            symbol=symbol, qty=qty, side=side_enum, time_in_force=tif,
+            symbol=symbol, **size, side=side_enum, time_in_force=tif,
             limit_price=limit_price, client_order_id=coid,
         )
     else:
         req = MarketOrderRequest(
-            symbol=symbol, qty=qty, side=side_enum, time_in_force=tif,
+            symbol=symbol, **size, side=side_enum, time_in_force=tif,
             client_order_id=coid,
         )
 

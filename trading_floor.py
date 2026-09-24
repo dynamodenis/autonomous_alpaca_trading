@@ -39,10 +39,11 @@ lastnames = ["Patience", "Bold", "Systematic", "Crypto"]
 # of them and no per-provider keys are needed. Configure via env:
 #   USE_MANY_MODELS=false -> every trader uses TRADER_MODEL
 #   USE_MANY_MODELS=true  -> traders use the comma-separated TRADER_MODELS in order
-DEFAULT_TRADER_MODEL = os.getenv("TRADER_MODEL", "openai/gpt-4.1-mini")
+DEFAULT_TRADER_MODEL = os.getenv("TRADER_MODEL", "deepseek/deepseek-v4-flash")
+# Mixed default for side-by-side comparison: DeepSeek vs gpt-4.1-mini.
 DEFAULT_TRADER_MODELS = (
-    "openai/gpt-4.1-mini,deepseek/deepseek-chat,"
-    "google/gemini-2.5-flash,x-ai/grok-3-mini-beta"
+    "deepseek/deepseek-v4-flash,openai/gpt-4.1-mini,"
+    "deepseek/deepseek-v4-flash,openai/gpt-4.1-mini"
 )
 
 

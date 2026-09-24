@@ -28,13 +28,13 @@ def _to_float(value) -> float:
 def _record_fill(account_name: str, side: str, symbol: str, qty: float, price: float, rationale: str) -> dict:
     """Write a filled order into the trader's SQLite ledger (per-trader attribution).
 
-    Quantities are stored as whole units to match the account model. Returns a
-    small status dict; a sell that exceeds the trader's recorded holdings is
-    reported (logged.ok=False) rather than raised — reconcile_holdings catches drift.
+    Fractional quantities are kept (rounded to 9 decimals, Alpaca's precision).
+    Returns a small status dict; errors are reported (logged.ok=False) rather
+    than raised — reconcile_holdings catches drift.
     """
-    units = int(round(qty))
+    units = round(qty, 9)
     if units <= 0:
-        return {"ok": False, "error": "filled quantity rounded to 0"}
+        return {"ok": False, "error": "filled quantity is 0"}
     # Store under the canonical symbol so a buy as "BTC/USD" and a later sell as
     # "BTCUSD" land on the same holding within the trader's ledger.
     symbol = normalize_symbol(symbol)
@@ -50,9 +50,13 @@ def _record_fill(account_name: str, side: str, symbol: str, qty: float, price: f
         return {"ok": False, "error": str(e)}
 
 
+def _size_label(qty: float | None, notional: float | None) -> str:
+    return f"${notional:,.2f} of" if notional is not None else f"{qty:g}"
+
+
 async def _jev_gate(
-    *, account_name: str, account: dict, asset_class: str, symbol: str, qty: float,
-    side: str, order_type: str, limit_price: float | None, rationale: str,
+    *, account_name: str, account: dict, asset_class: str, symbol: str, qty: float | None,
+    notional: float | None, side: str, order_type: str, limit_price: float | None, rationale: str,
 ) -> dict:
     """Have JEV approve or reject the proposed order, and log the verdict."""
     try:
@@ -72,7 +76,8 @@ async def _jev_gate(
         "trader": account_name,
         "strategy": strategy,
         "proposed_order": {
-            "side": side, "symbol": symbol, "qty": qty, "asset_class": asset_class,
+            "side": side, "symbol": symbol, "qty": qty, "notional_usd": notional,
+            "asset_class": asset_class,
             "order_type": order_type, "limit_price": limit_price,
         },
         "rationale": rationale or "(none given)",
@@ -84,14 +89,15 @@ async def _jev_gate(
         "current_position": position,
     })
     decision = "APPROVED" if verdict["approved"] else "REJECTED"
-    Account.write_log(account_name, "jev", f"{decision} {side.upper()} {qty:g} {symbol}: {verdict['reason']}")
+    Account.write_log(account_name, "jev", f"{decision} {side.upper()} {_size_label(qty, notional)} {symbol}: {verdict['reason']}")
     return verdict
 
 
 async def _place_and_log(
     *, asset_class: str, account_name: str | None, rationale: str,
-    symbol: str, qty: float, side: str, order_type: str,
+    symbol: str, qty: float | None, side: str, order_type: str,
     limit_price: float | None, time_in_force: str, client_order_id: str | None,
+    notional: float | None = None,
 ) -> dict:
     """Submit an order, wait for the fill, and (if account_name given) record it.
 
@@ -109,7 +115,7 @@ async def _place_and_log(
     # account's cash is negative (i.e. already borrowing on margin).
     if side.lower() == "buy" and "cash" in account and _to_float(account["cash"]) < 0:
         if account_name:
-            Account.write_log(account_name, "jev", f"BLOCKED BUY {qty:g} {symbol}: cash is negative")
+            Account.write_log(account_name, "jev", f"BLOCKED BUY {_size_label(qty, notional)} {symbol}: cash is negative")
         return {
             "ok": False, "retryable": False, "rejected_by": "funding",
             "error": f"Buy blocked: the account's cash is negative (${_to_float(account['cash']):,.2f}). "
@@ -120,7 +126,8 @@ async def _place_and_log(
     if jev.JEV_ENABLED and account_name:
         verdict = await _jev_gate(
             account_name=account_name, account=account, asset_class=asset_class, symbol=symbol,
-            qty=qty, side=side, order_type=order_type, limit_price=limit_price, rationale=rationale,
+            qty=qty, notional=notional, side=side, order_type=order_type, limit_price=limit_price,
+            rationale=rationale,
         )
         if not verdict["approved"]:
             return {
@@ -132,7 +139,7 @@ async def _place_and_log(
     res = await alpaca_exec.submit_order(
         symbol=symbol, qty=qty, side=side, asset_class=asset_class,
         order_type=order_type, limit_price=limit_price,
-        time_in_force=time_in_force, client_order_id=client_order_id,
+        time_in_force=time_in_force, client_order_id=client_order_id, notional=notional,
     )
     if verdict:
         res["jev"] = verdict
@@ -154,8 +161,9 @@ async def _place_and_log(
 async def place_stock_order(
     account_name: str,
     symbol: str,
-    qty: float,
     side: str,
+    qty: float | None = None,
+    notional: float | None = None,
     rationale: str = "",
     order_type: str = "market",
     limit_price: float | None = None,
@@ -163,12 +171,17 @@ async def place_stock_order(
     client_order_id: str | None = None,
 ) -> dict:
     """Place a stock order — it executes, waits for the fill, AND records the trade
-    to your account automatically. Idempotent and retried.
+    to your account automatically. Idempotent and retried. Fractional shares are
+    supported.
+
+    Size the order with EXACTLY ONE of:
+        notional: dollar amount, e.g. 150 buys $150 worth (market orders only).
+                  Preferred for buys — it can't overshoot your budget.
+        qty:      number of shares, fractions allowed (e.g. 0.35).
 
     Args:
         account_name: Your trader name (e.g. "Warren") — required for logging.
         symbol: Ticker, e.g. "AAPL".
-        qty: Number of shares.
         side: "buy" or "sell".
         rationale: Short reason for the trade (stored with the transaction).
         order_type: "market" (default) or "limit".
@@ -185,6 +198,7 @@ async def place_stock_order(
         asset_class="stock", account_name=account_name, rationale=rationale,
         symbol=symbol, qty=qty, side=side, order_type=order_type,
         limit_price=limit_price, time_in_force=time_in_force, client_order_id=client_order_id,
+        notional=notional,
     )
 
 
@@ -192,8 +206,9 @@ async def place_stock_order(
 async def place_crypto_order(
     account_name: str,
     symbol: str,
-    qty: float,
     side: str,
+    qty: float | None = None,
+    notional: float | None = None,
     rationale: str = "",
     order_type: str = "market",
     limit_price: float | None = None,
@@ -203,6 +218,7 @@ async def place_crypto_order(
     """Place a crypto order (e.g. symbol="BTC/USD"). Executes, waits for the fill,
     and records the trade to your account automatically.
 
+    Size with exactly one of `notional` (dollars) or `qty` (units, fractions allowed).
     Crypto uses time_in_force "gtc" by default ("day" is not valid for crypto).
     See place_stock_order for the args and return shape.
     """
@@ -210,6 +226,7 @@ async def place_crypto_order(
         asset_class="crypto", account_name=account_name, rationale=rationale,
         symbol=symbol, qty=qty, side=side, order_type=order_type,
         limit_price=limit_price, time_in_force=time_in_force, client_order_id=client_order_id,
+        notional=notional,
     )
 
 

@@ -31,7 +31,7 @@ def set_initial_balance(value: float) -> None:
 
 class Transaction(BaseModel):
     symbol: str
-    quantity: int
+    quantity: float
     price: float
     timestamp: str
     rationale: str
@@ -47,7 +47,7 @@ class Account(BaseModel):
     name: str
     balance: float
     strategy: str
-    holdings: dict[str, int]
+    holdings: dict[str, float]
     transactions: list[Transaction]
     portfolio_value_time_series: list[tuple[str, float]]
 
@@ -101,7 +101,7 @@ class Account(BaseModel):
         print(f"Withdrew ${amount}. New balance: ${self.balance}")
         self.save()
 
-    def buy_shares(self, symbol: str, quantity: int, rationale: str) -> str:
+    def buy_shares(self, symbol: str, quantity: float, rationale: str) -> str:
         """Buy shares of a stock if sufficient funds are available."""
         price = get_share_price(symbol)
         buy_price = price * (1 + SPREAD)
@@ -131,7 +131,7 @@ class Account(BaseModel):
         write_log(self.name, "account", f"Bought {quantity} of {symbol}")
         return "Completed. Latest details:\n" + self.report()
 
-    def sell_shares(self, symbol: str, quantity: int, rationale: str) -> str:
+    def sell_shares(self, symbol: str, quantity: float, rationale: str) -> str:
         """Sell shares of a stock if the user has enough shares."""
         if self.holdings.get(symbol, 0) < quantity:
             raise ValueError(
@@ -166,22 +166,22 @@ class Account(BaseModel):
         return "Completed. Latest details:\n" + self.report()
 
     def update_holdings_and_transactions(
-        self, action: Literal["buy", "sell"], symbol: str, quantity: int, rationale: str, price: float
+        self, action: Literal["buy", "sell"], symbol: str, quantity: float, rationale: str, price: float
     ) -> bool:
         """Update holdings and record a transaction for manual adjustments."""
         print(f"DEBUG: Updating {action} for {symbol}, quantity: {quantity}, price: {price}")  # ← Add this
         if action == "buy":
-            self.holdings[symbol] = self.holdings.get(symbol, 0) + quantity
+            self.holdings[symbol] = round(self.holdings.get(symbol, 0) + quantity, 9)
             signed_quantity = quantity
         else:
             # The fill already happened on the shared Alpaca account, which is the
             # source of truth; traders may sell positions bought before their
             # ledger began. Record the sale and draw down only what the ledger holds.
             held = self.holdings.get(symbol, 0)
-            if held <= quantity:
+            if held <= quantity + 1e-9:  # tolerance for fractional rounding
                 self.holdings.pop(symbol, None)
             else:
-                self.holdings[symbol] = held - quantity
+                self.holdings[symbol] = round(held - quantity, 9)
             signed_quantity = -quantity
 
         transaction = Transaction(

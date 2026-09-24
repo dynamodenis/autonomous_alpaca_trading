@@ -1,5 +1,5 @@
 import type { Transaction } from "../api/types";
-import { formatUsd, formatTime } from "../lib/format";
+import { formatNumber, formatUsd, formatTime } from "../lib/format";
 
 interface Props {
   transactions: Transaction[];
@@ -30,7 +30,7 @@ export default function Transactions({ transactions }: Props) {
             </span>
             <div className="tx-main">
               <span className="sym">
-                {Math.abs(tx.quantity)} {tx.symbol}
+                {formatNumber(Math.abs(tx.quantity))} {tx.symbol}
               </span>
               <div className="meta" title={tx.rationale}>
                 @ {formatUsd(tx.price)} · {formatTime(tx.timestamp)}
