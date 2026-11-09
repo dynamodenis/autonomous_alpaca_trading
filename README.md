@@ -52,7 +52,7 @@ They are deployed and run independently: the backend deploys to Hugging Face Spa
 ├── market*.py        # Market-data + MCP market server
 ├── push_server.py    # Pushover notification MCP server
 ├── mcp_params.py     # MCP server wiring (Alpaca, market, push, researcher)
-├── database.py       # SQLite persistence (accounts, logs, market cache)
+├── database.py       # Persistence: Postgres via DATABASE_URL, else SQLite (accounts, logs, market cache, history)
 ├── Dockerfile  requirements.txt  .env.example
 ├── BACKEND.md        # Backend setup, env vars, endpoint reference
 └── frontend/         # React + TypeScript dashboard (Vite → Cloudflare Pages)

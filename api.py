@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from accounts import Account
-from database import read_log, read_meta, write_meta
+from database import read_log, read_meta, write_meta, read_snapshots
 from floor_control import is_floor_running, start_trading_floor, stop_trading_floor
 from reconcile import (
     fetch_portfolio_snapshot_blocking,
@@ -39,7 +39,7 @@ AUTO_START_FLOOR = os.getenv("AUTO_START_FLOOR", "false").strip().lower() == "tr
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # On server load, sync each trader's balance from the live Alpaca account so
-    # the SQLite the frontend reads reflects real money. Non-fatal: a brokerage
+    # the database the frontend reads reflects real money. Non-fatal: a brokerage
     # error just leaves existing balances (and all history) untouched.
     try:
         report = await sync_balances_from_alpaca()
@@ -136,6 +136,18 @@ def get_trader_logs(name: str, limit: int = 13) -> list[dict]:
     """Most recent log entries for a single trader (oldest -> newest)."""
     trader = _resolve_trader(name)
     return _logs_payload(trader["name"], limit)
+
+
+@app.get("/api/traders/{name}/history")
+def get_trader_history(name: str, since: str | None = None, limit: int | None = None) -> list[dict]:
+    """Full portfolio-value history for a trader (one point per account report).
+
+    Unlike the capped series embedded in the trader payload, this is never
+    trimmed. ``since`` is an ISO date (inclusive); ``limit`` keeps only the most
+    recent N points.
+    """
+    trader = _resolve_trader(name)
+    return read_snapshots(trader["name"], since=since, limit=limit)
 
 
 @app.get("/api/dashboard")

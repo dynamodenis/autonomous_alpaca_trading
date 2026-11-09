@@ -40,15 +40,15 @@ lastnames = ["Patience", "Bold", "Systematic", "Crypto"]
 #   USE_MANY_MODELS=false -> every trader uses TRADER_MODEL
 #   USE_MANY_MODELS=true  -> traders use the comma-separated TRADER_MODELS in order
 DEFAULT_TRADER_MODEL = os.getenv("TRADER_MODEL", "deepseek/deepseek-v4-flash")
-# Mixed default for side-by-side comparison: DeepSeek vs gpt-4.1-mini.
+# Mixed default for side-by-side comparison: DeepSeek vs Kimi K2.6.
 DEFAULT_TRADER_MODELS = (
-    "deepseek/deepseek-v4-flash,openai/gpt-4.1-mini,"
-    "deepseek/deepseek-v4-flash,openai/gpt-4.1-mini"
+    "deepseek/deepseek-v4-flash,moonshotai/kimi-k2.6,"
+    "deepseek/deepseek-v4-flash,moonshotai/kimi-k2.6"
 )
 
 
 def _short_name(model_id: str) -> str:
-    """Dashboard label derived from the model id, e.g. 'openai/gpt-4.1-mini' -> 'gpt-4.1-mini'."""
+    """Dashboard label derived from the model id, e.g. 'moonshotai/kimi-k2.6' -> 'kimi-k2.6'."""
     return model_id.split("/")[-1]
 
 

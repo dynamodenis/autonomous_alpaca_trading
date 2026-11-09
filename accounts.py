@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 from market import get_share_price
-from database import write_account, read_account, write_log
+from database import write_account, read_account, write_log, write_snapshot
 # from util import client
 from reset import strategy_mapper
 
@@ -235,6 +235,8 @@ class Account(BaseModel):
             self.portfolio_value_time_series = self.portfolio_value_time_series[-MAX_TIMESERIES_POINTS:]
         self.save()
         pnl = self.calculate_profit_loss(portfolio_value)
+        # Full, never-trimmed history lives in its own table (see database.read_snapshots).
+        write_snapshot(self.name, portfolio_value, pnl)
         data = self.model_dump()
         data["total_portfolio_value"] = portfolio_value
         data["total_profit_loss"] = pnl
