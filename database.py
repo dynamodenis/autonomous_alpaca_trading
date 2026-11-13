@@ -15,6 +15,7 @@ backends, so callers never need to know which one is active.
 import json
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from dotenv import load_dotenv
@@ -120,6 +121,16 @@ if IS_POSTGRES:
                pnl DOUBLE PRECISION NOT NULL
            )""",
         "CREATE INDEX IF NOT EXISTS snapshots_name_ts ON portfolio_snapshots (name, ts)",
+        """CREATE TABLE IF NOT EXISTS pending_orders (
+               order_id TEXT PRIMARY KEY,
+               name TEXT NOT NULL,
+               side TEXT NOT NULL,
+               symbol TEXT NOT NULL,
+               rationale TEXT,
+               recorded_qty DOUBLE PRECISION NOT NULL DEFAULT 0,
+               recorded_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+               created DOUBLE PRECISION NOT NULL
+           )""",
     ]
     _NOW = "now()"
     _TS_OUT = "to_char({col} AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')"
@@ -144,6 +155,16 @@ else:
                pnl REAL NOT NULL
            )""",
         "CREATE INDEX IF NOT EXISTS snapshots_name_ts ON portfolio_snapshots (name, ts)",
+        """CREATE TABLE IF NOT EXISTS pending_orders (
+               order_id TEXT PRIMARY KEY,
+               name TEXT NOT NULL,
+               side TEXT NOT NULL,
+               symbol TEXT NOT NULL,
+               rationale TEXT,
+               recorded_qty REAL NOT NULL DEFAULT 0,
+               recorded_value REAL NOT NULL DEFAULT 0,
+               created REAL NOT NULL
+           )""",
     ]
     _NOW = "datetime('now')"
     _TS_OUT = "{col}"
@@ -265,3 +286,43 @@ def read_snapshots(name: str, since: str | None = None, limit: int | None = None
                   {where} ORDER BY ts ASC, id ASC"""
     rows = _fetchall(sql, tuple(params))
     return [{"timestamp": ts, "portfolio_value": value, "pnl": pnl} for ts, value, pnl in rows]
+
+
+# ── Pending orders ───────────────────────────────────────────────────────────
+#
+# Orders still open when their trader stopped waiting for the fill. See
+# pending_fills.py, which records them to the ledger once they fill.
+
+def write_pending_order(
+    order_id: str, name: str, side: str, symbol: str, rationale: str,
+    recorded_qty: float = 0.0, recorded_value: float = 0.0,
+) -> None:
+    """Start tracking an order (no-op if it is already tracked)."""
+    _execute(
+        """INSERT INTO pending_orders
+               (order_id, name, side, symbol, rationale, recorded_qty, recorded_value, created)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(order_id) DO NOTHING""",
+        (order_id, name.lower(), side.lower(), symbol, rationale or "",
+         float(recorded_qty), float(recorded_value), time.time()),
+    )
+
+
+def read_pending_orders() -> list[dict]:
+    rows = _fetchall(
+        """SELECT order_id, name, side, symbol, rationale, recorded_qty, recorded_value, created
+           FROM pending_orders ORDER BY created ASC"""
+    )
+    keys = ("order_id", "name", "side", "symbol", "rationale", "recorded_qty", "recorded_value", "created")
+    return [dict(zip(keys, row)) for row in rows]
+
+
+def update_pending_order(order_id: str, recorded_qty: float, recorded_value: float) -> None:
+    _execute(
+        "UPDATE pending_orders SET recorded_qty = ?, recorded_value = ? WHERE order_id = ?",
+        (float(recorded_qty), float(recorded_value), order_id),
+    )
+
+
+def delete_pending_order(order_id: str) -> None:
+    _execute("DELETE FROM pending_orders WHERE order_id = ?", (order_id,))

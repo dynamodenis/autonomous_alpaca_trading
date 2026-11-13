@@ -13,6 +13,7 @@ import alpaca_exec
 import jev
 from accounts import Account
 from funding import funding_mode
+from pending_fills import record_fill, track_pending
 from symbols import normalize_symbol
 
 mcp = FastMCP("alpaca_exec_server")
@@ -23,31 +24,6 @@ def _to_float(value) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
-
-
-def _record_fill(account_name: str, side: str, symbol: str, qty: float, price: float, rationale: str) -> dict:
-    """Write a filled order into the trader's SQLite ledger (per-trader attribution).
-
-    Fractional quantities are kept (rounded to 9 decimals, Alpaca's precision).
-    Returns a small status dict; errors are reported (logged.ok=False) rather
-    than raised — reconcile_holdings catches drift.
-    """
-    units = round(qty, 9)
-    if units <= 0:
-        return {"ok": False, "error": "filled quantity is 0"}
-    # Store under the canonical symbol so a buy as "BTC/USD" and a later sell as
-    # "BTCUSD" land on the same holding within the trader's ledger.
-    symbol = normalize_symbol(symbol)
-    try:
-        account = Account.get(account_name)
-        account.update_holdings_and_transactions(
-            "buy" if side.lower() == "buy" else "sell",
-            symbol, units, rationale or f"{side} {symbol}", price,
-        )
-        return {"ok": True, "symbol": symbol, "quantity": units, "price": price}
-    except Exception as e:  # noqa: BLE001
-        print(f"[exec] auto-log failed for {account_name} {side} {symbol}: {e}")
-        return {"ok": False, "error": str(e)}
 
 
 def _size_label(qty: float | None, notional: float | None) -> str:
@@ -153,7 +129,16 @@ async def _place_and_log(
 
     logged = None
     if filled_qty > 0 and filled_price > 0:
-        logged = _record_fill(account_name, side, symbol, filled_qty, filled_price, rationale)
+        logged = record_fill(account_name, side, symbol, filled_qty, filled_price, rationale)
+
+    # Still open (or only partly filled) when the wait gave up: remember it so
+    # the fill is recorded later instead of being lost (see pending_fills.py).
+    if order_id and not fill.get("done"):
+        recorded = filled_qty if logged and logged.get("ok") else 0.0
+        if track_pending(order_id, account_name, side, symbol, rationale, recorded, recorded * filled_price):
+            fill["note"] = ("Order is still open at the broker. If it fills later it will be recorded "
+                            "to your account automatically. Do not wait on it again and do not "
+                            "resubmit it; cancel it with cancel_order if it is no longer wanted.")
     return {**res, "fill": fill, "logged": logged}
 
 
@@ -231,12 +216,13 @@ async def place_crypto_order(
 
 
 @mcp.tool()
-async def await_order_fill(order_id: str, timeout_seconds: float = 60.0) -> dict:
-    """Wait for an order to fill (or otherwise finish) up to a timeout.
+async def await_order_fill(order_id: str, timeout_seconds: float = 30.0) -> dict:
+    """Check on an order, waiting briefly for it to fill (or otherwise finish).
 
-    Use this INSTEAD of calling get_orders in a loop. Returns the order with its
-    final `status`, `filled_qty` and `filled_avg_price`. If `timed_out` is True
-    the order had not reached a terminal state within `timeout_seconds`.
+    place_stock_order / place_crypto_order already wait for the fill, so you
+    rarely need this. `timeout_seconds` is capped at 45. Returns the order with
+    its `status`, `filled_qty` and `filled_avg_price`. If `timed_out` is True the
+    order is still open at the broker: do NOT call this again for it this cycle.
     """
     return await alpaca_exec.await_order_fill(order_id, timeout_seconds=timeout_seconds)
 

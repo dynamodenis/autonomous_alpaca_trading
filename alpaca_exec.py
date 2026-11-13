@@ -21,6 +21,7 @@ unit-testable without spawning a server.
 """
 
 import asyncio
+import functools
 import os
 import uuid
 
@@ -43,6 +44,16 @@ MAX_RETRIES = int(os.getenv("ALPACA_MAX_RETRIES", "4"))
 BACKOFF_BASE_SECONDS = float(os.getenv("ALPACA_BACKOFF_BASE_SECONDS", "0.5"))
 BACKOFF_MAX_SECONDS = float(os.getenv("ALPACA_BACKOFF_MAX_SECONDS", "8"))
 
+# alpaca-py sends requests with no HTTP timeout, so a stalled connection would
+# block its worker thread forever. Every request gets this (connect/read) limit.
+HTTP_TIMEOUT_SECONDS = float(os.getenv("ALPACA_HTTP_TIMEOUT_SECONDS", "10"))
+
+# Hard wall-clock cap on one `await_order_fill` call. It must stay well below
+# the MCP client's 120s tool-call timeout (see traders.py), since
+# place_*_order spends time on the account lookup, JEV and submission before it
+# starts waiting; whatever the caller asks for is clamped to this.
+MAX_FILL_WAIT_SECONDS = float(os.getenv("ALPACA_MAX_FILL_WAIT_SECONDS", "45"))
+
 # HTTP status codes that are safe to retry (transient server / throttling).
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
@@ -54,6 +65,11 @@ client = TradingClient(
     secret_key=os.getenv("ALPACA_SECRET_KEY"),
     paper=os.getenv("ALPACA_PAPER", "true").lower() == "true",
 )
+
+try:
+    client._session.request = functools.partial(client._session.request, timeout=HTTP_TIMEOUT_SECONDS)
+except AttributeError:  # alpaca-py internals changed; run without the timeout
+    print("[alpaca_exec][WARN] could not set an HTTP timeout on the Alpaca client")
 
 
 # --- Error classification ----------------------------------------------------
@@ -228,25 +244,47 @@ async def submit_order(
         return {"ok": False, "retryable": _is_retryable(exc), "client_order_id": coid, "error": str(exc)}
 
 
-async def await_order_fill(order_id: str, timeout_seconds: float = 60.0, poll_interval: float = 2.0) -> dict:
+async def await_order_fill(
+    order_id: str, timeout_seconds: float = MAX_FILL_WAIT_SECONDS, poll_interval: float = 2.0
+) -> dict:
     """Poll an order until it reaches a terminal state or the timeout elapses.
 
-    Replaces the old "call get_orders() repeatedly until filled" agent loop with
-    a bounded, server-side poll so a never-filling order can't hang a trade cycle.
+    The timeout is a wall-clock deadline (slow or failing Alpaca calls count
+    against it) and is clamped to MAX_FILL_WAIT_SECONDS, so this always returns
+    before the MCP client gives up on the tool call. An order that is still
+    open at the deadline is reported with `timed_out`, not treated as an error.
     """
-    waited = 0.0
-    last = None
-    while waited <= timeout_seconds:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + max(0.0, min(float(timeout_seconds), MAX_FILL_WAIT_SECONDS))
+    last: dict = {}
+    last_error = None
+    while True:
+        remaining = deadline - loop.time()
         try:
-            order = await _with_retries("get_order_by_id", client.get_order_by_id, order_id)
-            last = _order_to_dict(order)
+            # No _with_retries here: this loop is the retry, and its backoff
+            # would run past the deadline.
+            order = await asyncio.wait_for(
+                asyncio.to_thread(client.get_order_by_id, order_id),
+                timeout=max(1.0, min(HTTP_TIMEOUT_SECONDS, remaining)),
+            )
+            last, last_error = _order_to_dict(order), None
             if (last.get("status") or "").lower() in TERMINAL_STATUSES:
                 return {"ok": True, "done": True, **last}
         except Exception as exc:  # noqa: BLE001
-            last = {"error": str(exc)}
-        await asyncio.sleep(poll_interval)
-        waited += poll_interval
-    return {"ok": True, "done": False, "timed_out": True, **(last or {})}
+            last_error = _error_message(exc) or type(exc).__name__
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            break
+        await asyncio.sleep(min(poll_interval, remaining))
+
+    result = {
+        "ok": True, "done": False, "timed_out": True, **last,
+        "note": "Order is still open at the broker and may fill later. Do not wait on it "
+                "again and do not resubmit it; cancel it with cancel_order if it is no longer wanted.",
+    }
+    if last_error:
+        result["error"] = last_error
+    return result
 
 
 async def cancel_order(order_id: str) -> dict:

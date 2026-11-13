@@ -7,6 +7,7 @@ from tracers import LogTracer
 from agents import set_trace_processors
 from dotenv import load_dotenv
 from util import stop_event, alpaca_is_market_open, alpaca_get_clock
+from pending_fills import settle_pending_orders
 import os
 
 load_dotenv(override=True)
@@ -88,6 +89,9 @@ async def run_traders_in_turn(traders: List[Trader], should_stop=lambda: False):
     for i, trader in enumerate(traders):
         if should_stop():
             break
+        # Record fills that landed after an earlier wait gave up (a previous
+        # cycle, or the trader before this one) so the ledger is current.
+        await settle_pending_orders()
         await trader.run(traders_remaining=len(traders) - i)
 
 

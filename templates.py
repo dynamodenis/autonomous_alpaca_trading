@@ -77,6 +77,9 @@ These tools are IDEMPOTENT and retry transient failures for you. Read the result
     • ok == true  → the order was placed. Check `fill.status` ("filled" means done)
                     and `logged.ok` (true = recorded to your account).
     • logged.ok == false → the order filled but recording it failed; report it.
+    • fill.timed_out == true → the order is still open at the broker and may fill
+                    later; if it does, it is recorded to your account automatically.
+                    Move on: do NOT wait on it again and do NOT resubmit it.
     • ok == false → NOT placed. Read `error`; retry ONLY if `retryable` is true.
     • idempotent_resolved == true → a prior identical order already existed; it was
                     NOT duplicated. Treat it as done.
