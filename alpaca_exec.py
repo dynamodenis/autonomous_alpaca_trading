@@ -143,6 +143,9 @@ def _order_to_dict(order) -> dict:
     """Project an alpaca-py Order into the small, JSON-safe shape agents need."""
     def g(attr):
         val = getattr(order, attr, None)
+        # Enums (status, side, type, time_in_force) must come out as their plain
+        # value: str() gives "OrderStatus.FILLED", which no status check matches.
+        val = getattr(val, "value", val)
         return str(val) if val is not None else None
 
     return {
@@ -340,7 +343,7 @@ async def get_positions() -> list[dict]:
             "avg_entry_price": str(getattr(p, "avg_entry_price", None)),
             "market_value": str(getattr(p, "market_value", None)),
             "unrealized_pl": str(getattr(p, "unrealized_pl", None)),
-            "side": str(getattr(p, "side", None)),
+            "side": str(getattr(getattr(p, "side", None), "value", getattr(p, "side", None))),
         }
         for p in positions
     ]

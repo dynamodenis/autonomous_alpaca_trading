@@ -196,6 +196,11 @@ def read_account(name):
     return json.loads(row[0]) if row else None
 
 
+def read_account_names() -> list[str]:
+    """Names (lower-case) of every stored account."""
+    return [row[0] for row in _fetchall("SELECT name FROM accounts ORDER BY name")]
+
+
 # ── Logs ─────────────────────────────────────────────────────────────────────
 
 def write_log(name: str, type: str, message: str):

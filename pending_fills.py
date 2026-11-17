@@ -44,21 +44,69 @@ def record_fill(account_name: str, side: str, symbol: str, qty: float, price: fl
     # Store under the canonical symbol so a buy as "BTC/USD" and a later sell as
     # "BTCUSD" land on the same holding within the trader's ledger.
     symbol = normalize_symbol(symbol)
+    is_sell = side.lower() != "buy"
     try:
         account = Account.get(account_name)
+        held_before = account.holdings.get(symbol, 0.0)
         account.update_holdings_and_transactions(
-            "buy" if side.lower() == "buy" else "sell",
+            "sell" if is_sell else "buy",
             symbol, units, rationale or f"{side} {symbol}", price,
         )
         try:
+            if is_sell and units - held_before > _EPS:
+                _close_teammate_positions(account.name, symbol, units - held_before, price, rationale)
             # Put the trade on the P/L chart right away.
             account.record_snapshot(live_prices(max_age=0))
         except Exception as e:  # noqa: BLE001 - the fill itself is already recorded
-            print(f"[fills] P/L snapshot failed for {account_name}: {e}")
+            print(f"[fills] post-fill bookkeeping failed for {account_name}: {e}")
         return {"ok": True, "symbol": symbol, "quantity": units, "price": price}
     except Exception as e:  # noqa: BLE001
         print(f"[fills] ledger write failed for {account_name} {side} {symbol}: {e}")
         return {"ok": False, "error": str(e)}
+
+
+def _close_teammate_positions(seller: str, symbol: str, excess: float, price: float, rationale: str) -> None:
+    """Book a sale of shares the seller's own ledger didn't hold against the
+    teammates whose shares they were.
+
+    The traders are one team on one Alpaca account and may sell each other's
+    positions. `excess` is how many shares the seller sold beyond its own
+    ledger. Shares nobody's ledger owns (bought before the ledgers began) are
+    treated as sold first; teammates' ledgers are drawn down only as far as
+    needed to keep the ledgers' total within what Alpaca still holds. Each
+    affected teammate gets the sale as a transaction at the fill price, so the
+    profit or loss lands on the trader who bought the shares.
+    """
+    position_qty = 0.0
+    for p in alpaca_exec.client.get_all_positions():
+        if normalize_symbol(str(p.symbol)) == symbol:
+            position_qty = max(0.0, _to_float(p.qty))
+
+    holders = []  # (units held, ledger key, account)
+    ledger_total = 0.0
+    for name in database.read_account_names():
+        teammate = Account.get(name)
+        for key, units in teammate.holdings.items():
+            if normalize_symbol(key) == symbol and units > _EPS:
+                ledger_total += units
+                if name != seller.lower():
+                    holders.append((units, key, teammate))
+
+    remaining = min(excess, ledger_total - position_qty)
+    prices = live_prices(max_age=0)
+    for units, key, teammate in sorted(holders, key=lambda h: h[0], reverse=True):
+        if remaining <= _EPS:
+            break
+        taken = round(min(units, remaining), 9)
+        remaining -= taken
+        teammate.update_holdings_and_transactions(
+            "sell", key, taken, f"Sold by teammate {seller.title()}: {rationale or 'no rationale given'}", price,
+        )
+        Account.write_log(
+            teammate.name, "account",
+            f"Teammate {seller.title()} sold {taken:g} of your {key} at ${price:,.2f}",
+        )
+        teammate.record_snapshot(prices)
 
 
 def track_pending(
