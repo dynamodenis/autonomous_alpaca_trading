@@ -3,8 +3,11 @@ from mcp.client.stdio import stdio_client
 from mcp import StdioServerParameters
 from agents import FunctionTool
 import json
+import os
 
-params = StdioServerParameters(command="uv", args=["run", "accounts_server.py"], env=None)
+# Pass the full environment: the MCP stdio client otherwise withholds it, and the
+# server would miss DATABASE_URL and read a local SQLite file (see mcp_params.py).
+params = StdioServerParameters(command="uv", args=["run", "accounts_server.py"], env=dict(os.environ))
 
 
 async def list_accounts_tools():

@@ -40,23 +40,25 @@ def _search_mcp_server() -> dict | None:
         "env": tavily_env,
     }
 
-alpaca_env = {
-    "ALPACA_API_KEY": os.getenv("ALPACA_API_KEY"),
-    "ALPACA_SECRET_KEY": os.getenv("ALPACA_SECRET_KEY"),
-    "ALPACA_PAPER": os.getenv("ALPACA_PAPER", "true"), # Default to Paper
-    # The order server calls the JEV decision gate (jev.py) via OpenRouter.
-    "OPENROUTER_API_KEY": os.getenv("OPENROUTER_API_KEY", ""),
-}
-# Pass JEV_*/FUNDING_* settings through only when set, so the modules' defaults apply otherwise.
-alpaca_env.update({k: v for k, v in os.environ.items() if k.startswith(("JEV_", "FUNDING_"))})
+# Environment for the in-repo MCP servers (accounts, push, market, alpaca).
+#
+# The MCP stdio client does NOT pass the parent's environment to the servers it
+# spawns: they only get a short whitelist (PATH, HOME, ...) plus whatever `env`
+# is given here. Locally that is hidden by each server reading `.env` itself,
+# but where settings exist only as real environment variables (Hugging Face
+# Spaces secrets) a server without them silently falls back to defaults: SQLite
+# instead of DATABASE_URL (trades recorded to a throwaway file the dashboard
+# never sees), random share prices instead of Polygon, no push notifications.
+# These servers are our own code, so they get the full environment.
+local_env = dict(os.environ)
+alpaca_env = {**local_env, "ALPACA_PAPER": os.getenv("ALPACA_PAPER", "true")}  # default to paper
 
 polygon_api_key = os.getenv("POLYGON_API_KEY")
 
 # Hardened, in-repo Alpaca execution server. Replaces the third-party
 # `alpaca-mcp-server` so that every order mutation runs through our own code,
 # which adds idempotency keys, retries with backoff, and bounded fill polling
-# (see alpaca_exec.py). Credentials are inherited from the parent process env
-# (already loaded above), same as the other local `uv run` servers.
+# (see alpaca_exec.py).
 alpaca_mcp = {
     "command": "uv",
     "args": ["run", "alpaca_exec_server.py"],
@@ -72,14 +74,14 @@ if is_paid_polygon or is_realtime_polygon:
         "env": {"POLYGON_API_KEY": polygon_api_key},
     }
 else:
-    market_mcp = {"command": "uv", "args": ["run", "market_server.py"]}
+    market_mcp = {"command": "uv", "args": ["run", "market_server.py"], "env": local_env}
 
 
 # The full set of MCP servers for the trader: Accounts, Push Notification and the Market
 
 trader_mcp_server_params = [
-    {"command": "uv", "args": ["run", "accounts_server.py"]},
-    {"command": "uv", "args": ["run", "push_server.py"]},
+    {"command": "uv", "args": ["run", "accounts_server.py"], "env": local_env},
+    {"command": "uv", "args": ["run", "push_server.py"], "env": local_env},
     market_mcp,
     alpaca_mcp
 ]

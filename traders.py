@@ -24,7 +24,12 @@ openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-MAX_TURNS = 10
+# Turn caps. A trader's cycle is research -> prices -> sells -> buys -> notify ->
+# appraisal, which regularly needs more than 10 model turns; hitting the cap
+# aborts the run mid-cycle ("Max turns exceeded"). The Researcher keeps a
+# tighter cap since each of its calls is a short, bounded lookup.
+MAX_TURNS = int(os.getenv("TRADER_MAX_TURNS", "20"))
+RESEARCHER_MAX_TURNS = int(os.getenv("RESEARCHER_MAX_TURNS", "10"))
 
 # The Researcher sub-agent does web search + summarization, which is cheap,
 # high-volume work — so it runs on its own (cheaper) model, independent of the
@@ -80,7 +85,7 @@ async def get_researcher_tool(mcp_servers, model_name, owner_name: str) -> Tool:
     # RunResult back and can log token usage on every call.
     @function_tool(name_override="Researcher", description_override=research_tool())
     async def researcher_tool(query: str) -> str:
-        result = await Runner.run(researcher, query, max_turns=MAX_TURNS)
+        result = await Runner.run(researcher, query, max_turns=RESEARCHER_MAX_TURNS)
         _log_researcher_cost(owner_name, model_name, result)
         return str(result.final_output)
 
@@ -202,4 +207,10 @@ class Trader:
             await self.run_with_trace()
         except Exception as e:
             print(f"Error running trader {self.name}: {e}")
+            # Also keep it in the persistent logs, so a failed run can be
+            # diagnosed from the dashboard after the console has scrolled away.
+            try:
+                Account.write_log(self.name, "error", f"Run failed: {type(e).__name__}: {str(e)[:500]}")
+            except Exception:  # noqa: BLE001
+                pass
         self.do_trade = not self.do_trade
