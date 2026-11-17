@@ -36,7 +36,7 @@ pip install -r requirements.txt
 | `SEARCH_PROVIDER` | Researcher web search provider: `tavily` (default) or `brave` |
 | `TAVILY_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=tavily`, the default) |
 | `BRAVE_API_KEY` | Researcher web search (when `SEARCH_PROVIDER=brave`) |
-| `POLYGON_API_KEY`, `POLYGON_PLAN` | Market data (optional; falls back to random prices) |
+| `MASSIVE_API_KEY`, `POLYGON_PLAN` | Market data (optional; falls back to random prices) |
 | `PUSHOVER_USER`, `PUSHOVER_TOKEN` | Push notifications |
 | `AUTO_START_FLOOR` | Start the trading floor when the server boots (default `false`; set `true` on HF Spaces so restarts resume trading) |
 | `RUN_SCHEDULE` | `open_close` (default — run at the open and before close) or `interval` |

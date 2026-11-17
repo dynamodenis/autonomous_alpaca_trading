@@ -9,7 +9,7 @@ from datetime import timezone
 
 load_dotenv(override=True)
 
-polygon_api_key = os.getenv("POLYGON_API_KEY")
+polygon_api_key = os.getenv("MASSIVE_API_KEY")
 polygon_plan = os.getenv("POLYGON_PLAN")
 
 is_paid_polygon = polygon_plan == "paid"

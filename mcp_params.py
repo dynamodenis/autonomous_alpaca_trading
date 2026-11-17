@@ -53,7 +53,7 @@ def _search_mcp_server() -> dict | None:
 local_env = dict(os.environ)
 alpaca_env = {**local_env, "ALPACA_PAPER": os.getenv("ALPACA_PAPER", "true")}  # default to paper
 
-polygon_api_key = os.getenv("POLYGON_API_KEY")
+polygon_api_key = os.getenv("MASSIVE_API_KEY")
 
 # Hardened, in-repo Alpaca execution server. Replaces the third-party
 # `alpaca-mcp-server` so that every order mutation runs through our own code,
@@ -71,6 +71,7 @@ if is_paid_polygon or is_realtime_polygon:
     market_mcp = {
         "command": "uvx",
         "args": ["--from", "git+https://github.com/polygon-io/mcp_polygon@v0.1.0", "mcp_polygon"],
+        # The pinned third-party server still reads the key under its old name.
         "env": {"POLYGON_API_KEY": polygon_api_key},
     }
 else:
