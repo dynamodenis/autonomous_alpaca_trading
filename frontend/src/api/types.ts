@@ -9,7 +9,7 @@ export interface Transaction {
   rationale: string;
 }
 
-/** A single (timestamp, portfolio-value) point from the time series. */
+/** A single (timestamp, value) point from a time series. */
 export type PortfolioPoint = [string, number];
 
 export interface Account {
@@ -20,8 +20,17 @@ export interface Account {
   holdings: Record<string, number>;
   transactions: Transaction[];
   portfolio_value_time_series: PortfolioPoint[];
+  /** This trader's P/L history (UTC timestamps), ending with the live value. */
+  pnl_time_series: PortfolioPoint[];
   total_portfolio_value: number;
+  /** Realized + unrealized P/L on this trader's own trades. */
   total_profit_loss: number;
+  realized_profit_loss: number;
+  unrealized_profit_loss: number;
+  /** Current market value of this trader's positions. */
+  holdings_value: number;
+  /** Gross cost of every buy this trader has made. */
+  invested: number;
 }
 
 /** Roster entry from GET /api/traders. */

@@ -30,10 +30,9 @@ export default function TraderCard({ trader }: Props) {
   const up = pnl >= 0;
   // The cash balance is the SHARED Alpaca account's — every trader reports the
   // same figure — so this trader's own footprint is just their positions.
-  const holdingsValue = account.total_portfolio_value - account.balance;
-  // Unrealized return on the capital this trader actually put into positions.
-  const costBasis = holdingsValue - pnl;
-  const pct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+  const holdingsValue = account.holdings_value;
+  // Return on the capital this trader has put into buys.
+  const pct = account.invested > 0 ? (pnl / account.invested) * 100 : 0;
   const positions = Object.values(account.holdings).filter((q) => q !== 0).length;
 
   const style = {
@@ -71,7 +70,7 @@ export default function TraderCard({ trader }: Props) {
       </div>
 
       <PortfolioChart
-        series={account.portfolio_value_time_series}
+        series={account.pnl_time_series}
         accent={theme.accent}
       />
 

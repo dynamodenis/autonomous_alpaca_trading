@@ -24,6 +24,7 @@ pip install -r requirements.txt
 | `ALPACA_PAPER` | `true` (default) for paper trading |
 | `OPENROUTER_API_KEY` | Required — all traders + researcher run through OpenRouter |
 | `DATABASE_URL` | Postgres connection string (e.g. Neon) for persistent accounts/logs/history; unset = local SQLite `accounts.db`, which is wiped on every HF Spaces restart |
+| `SNAPSHOT_INTERVAL_SECONDS` | How often each trader's P/L is recorded for the dashboard chart while the market is open (default `300`; `0` disables). A point is also recorded after every fill |
 | `TRADER_MODEL` | Model for all traders when `USE_MANY_MODELS=false` (default `deepseek/deepseek-v4-flash`) |
 | `TRADER_MODELS` | Comma-separated models (one per trader, in order) when `USE_MANY_MODELS=true` |
 | `RESEARCHER_MODEL` | Cheap model for the Researcher sub-agent (default `deepseek/deepseek-v4-flash`) |

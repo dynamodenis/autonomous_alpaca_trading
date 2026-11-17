@@ -8,12 +8,12 @@ import {
   YAxis,
 } from "recharts";
 import type { PortfolioPoint } from "../api/types";
-import { formatUsd, formatDateTime } from "../lib/format";
+import { formatSignedUsd, formatDateTime } from "../lib/format";
 
 interface Props {
+  /** The trader's profit/loss over time. */
   series: PortfolioPoint[];
   accent: string;
-  baseline?: number;
 }
 
 interface Datum {
@@ -21,26 +21,23 @@ interface Datum {
   v: number;
 }
 
-const STARTING_CAPITAL = 10_000;
+// Break-even: the dashed line the P/L curve is read against.
+const BASELINE = 0;
 
-export default function PortfolioChart({
-  series,
-  accent,
-  baseline = STARTING_CAPITAL,
-}: Props) {
+export default function PortfolioChart({ series, accent }: Props) {
   const gradientId = useId();
 
   if (!series || series.length < 2) {
     return (
-      <div className="chart-empty">Awaiting portfolio history…</div>
+      <div className="chart-empty">Awaiting P/L history…</div>
     );
   }
 
   const data: Datum[] = series.map(([t, v]) => ({ t, v }));
   const values = data.map((d) => d.v);
-  const min = Math.min(...values, baseline);
-  const max = Math.max(...values, baseline);
-  const pad = (max - min) * 0.12 || max * 0.02 || 1;
+  const min = Math.min(...values, BASELINE);
+  const max = Math.max(...values, BASELINE);
+  const pad = (max - min) * 0.12 || 1;
 
   return (
     <div className="chart-wrap">
@@ -54,7 +51,7 @@ export default function PortfolioChart({
           </defs>
           <YAxis hide domain={[min - pad, max + pad]} />
           <ReferenceLine
-            y={baseline}
+            y={BASELINE}
             stroke="rgba(148,163,184,0.35)"
             strokeDasharray="4 4"
           />
@@ -67,7 +64,7 @@ export default function PortfolioChart({
                 <div className="rc-tooltip">
                   <div className="t">{formatDateTime(d.t)}</div>
                   <div className="v" style={{ color: accent }}>
-                    {formatUsd(d.v)}
+                    {formatSignedUsd(d.v)}
                   </div>
                 </div>
               );

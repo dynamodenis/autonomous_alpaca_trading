@@ -9,6 +9,7 @@ servers (`uv run accounts_server.py`, `file:./memory/{name}.db`) resolve:
     uvicorn api:app --host 0.0.0.0 --port 8000
 """
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -17,15 +18,17 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from accounts import Account
+from accounts import Account, MAX_TIMESERIES_POINTS
 from database import read_log, read_meta, write_meta, read_snapshots
 from floor_control import is_floor_running, start_trading_floor, stop_trading_floor
+from prices import live_prices
 from reconcile import (
     fetch_portfolio_snapshot_blocking,
     reconcile_all_blocking,
     sync_balances_from_alpaca,
     sync_balances_from_alpaca_blocking,
 )
+from snapshots import run_snapshot_loop
 from trading_floor import lastnames, names, short_model_names
 from util import alpaca_get_clock
 
@@ -54,7 +57,11 @@ async def lifespan(app: FastAPI):
             print(f"[startup] AUTO_START_FLOOR: {start_trading_floor()}")
         except Exception as e:  # noqa: BLE001
             print(f"[startup] Auto-start of trading floor failed: {e}")
+
+    # Keep every trader's P/L chart moving between their (infrequent) runs.
+    snapshot_task = asyncio.create_task(run_snapshot_loop())
     yield
+    snapshot_task.cancel()
     if is_floor_running():
         print(f"[shutdown] {stop_trading_floor()}")
 
@@ -90,14 +97,22 @@ def _resolve_trader(name: str) -> dict:
 
 
 def _account_payload(name: str) -> dict:
-    """Build an account snapshot WITHOUT mutating the time series.
+    """Build an account snapshot WITHOUT writing anything.
 
-    Unlike `Account.report()`, this does not append a new portfolio-value
-    point or save on every read — important since the frontend polls this.
+    Unlike `Account.report()`, this does not record a history point or save on
+    every read — important since the frontend polls this.
     """
     account = Account.get(name)
-    portfolio_value = account.calculate_portfolio_value()
-    pnl = account.calculate_profit_loss(portfolio_value)
+    prices = live_prices()
+    pnl = account.pnl_breakdown(prices)
+    # Recorded history (UTC), ending with the live value so the chart always
+    # finishes on the number shown next to it.
+    series = [
+        (s["timestamp"].replace(" ", "T") + "Z", s["pnl"])
+        for s in read_snapshots(account.name, limit=MAX_TIMESERIES_POINTS)
+    ]
+    if prices is not None:
+        series.append((datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), pnl["total"]))
     return {
         "name": account.name,
         "balance": account.balance,
@@ -105,8 +120,13 @@ def _account_payload(name: str) -> dict:
         "holdings": account.holdings,
         "transactions": [t.model_dump() for t in account.transactions],
         "portfolio_value_time_series": account.portfolio_value_time_series,
-        "total_portfolio_value": portfolio_value,
-        "total_profit_loss": pnl,
+        "pnl_time_series": series,
+        "total_portfolio_value": account.balance + pnl["holdings_value"],
+        "total_profit_loss": pnl["total"],
+        "realized_profit_loss": pnl["realized"],
+        "unrealized_profit_loss": pnl["unrealized"],
+        "holdings_value": pnl["holdings_value"],
+        "invested": pnl["invested"],
     }
 
 

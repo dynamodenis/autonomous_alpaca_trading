@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 from market import get_share_price
 from database import write_account, read_account, write_log, write_snapshot
+from prices import live_prices
+from symbols import normalize_symbol
 # from util import client
 from reset import strategy_mapper
 
@@ -14,7 +16,8 @@ load_dotenv(override=True)
 INITIAL_BALANCE = 10_000.0
 SPREAD = 0.002
 # Cap the portfolio-value history so the DB row and the frontend payload don't
-# grow without bound (a new point is appended on every account report()).
+# grow without bound (a new point is appended on every account report()). Also
+# the number of P/L history points sent to the dashboard chart.
 MAX_TIMESERIES_POINTS = int(os.getenv("MAX_TIMESERIES_POINTS", "500"))
 
 
@@ -200,17 +203,75 @@ class Account(BaseModel):
 
         return True
 
-    def calculate_portfolio_value(self):
-        """Calculate the total value of the user's portfolio."""
-        total_value = self.balance
-        for symbol, quantity in self.holdings.items():
-            total_value += get_share_price(symbol) * quantity
-        return total_value
+    def pnl_breakdown(self, prices: dict[str, float] | None = None) -> dict:
+        """This trader's profit/loss on its own trades, by average cost.
 
-    def calculate_profit_loss(self, portfolio_value: float):
-        """Calculate profit or loss from the initial spend."""
-        initial_spend = sum(transaction.total() for transaction in self.transactions)
-        return portfolio_value - initial_spend - self.balance
+        Walks the ledger: a buy adds to the position at its fill price; a sell
+        realizes (sell price - average cost) on the shares it closes. Shares
+        sold that the ledger never bought (positions that predate it, or that
+        another trader opened on the shared account) have no known cost, so
+        they contribute nothing rather than counting as pure profit.
+
+        `prices` maps normalized symbol -> current price (see prices.live_prices).
+        A position with no price is valued at cost, i.e. zero unrealized P/L.
+        """
+        qty: dict[str, float] = {}
+        cost: dict[str, float] = {}
+        realized = invested = 0.0
+        for t in self.transactions:
+            held = qty.get(t.symbol, 0.0)
+            if t.quantity > 0:
+                qty[t.symbol] = held + t.quantity
+                cost[t.symbol] = cost.get(t.symbol, 0.0) + t.quantity * t.price
+                invested += t.quantity * t.price
+                continue
+            closed = min(-t.quantity, held)
+            if closed <= 0:
+                continue
+            average = cost[t.symbol] / held
+            realized += closed * (t.price - average)
+            if held - closed <= 1e-9:  # same tolerance the ledger uses
+                qty.pop(t.symbol)
+                cost.pop(t.symbol)
+            else:
+                qty[t.symbol] = held - closed
+                cost[t.symbol] -= closed * average
+
+        cost_basis = sum(cost.values())
+        holdings_value = 0.0
+        for symbol, units in qty.items():
+            price = (prices or {}).get(normalize_symbol(symbol), 0.0)
+            holdings_value += units * price if price > 0 else cost[symbol]
+        unrealized = holdings_value - cost_basis
+        return {
+            "realized": realized,
+            "unrealized": unrealized,
+            "total": realized + unrealized,
+            "holdings_value": holdings_value,
+            "cost_basis": cost_basis,
+            "invested": invested,  # gross cost of every buy this trader made
+        }
+
+    def calculate_portfolio_value(self, prices: dict[str, float] | None = None):
+        """Synced balance plus the current value of this trader's positions."""
+        return self.balance + self.pnl_breakdown(prices)["holdings_value"]
+
+    def calculate_profit_loss(self, prices: dict[str, float] | None = None):
+        """Realized + unrealized profit/loss on this trader's own trades."""
+        return self.pnl_breakdown(prices)["total"]
+
+    def record_snapshot(self, prices: dict[str, float] | None) -> bool:
+        """Add a point to this trader's P/L history (the dashboard chart).
+
+        Insert-only: it never rewrites the account row, so it is safe to call
+        from any process. Skipped when there are no live prices, since a point
+        valued at cost would show up as a false jump.
+        """
+        if prices is None:
+            return False
+        pnl = self.pnl_breakdown(prices)
+        write_snapshot(self.name, self.balance + pnl["holdings_value"], pnl["total"])
+        return True
 
     def get_holdings(self):
         """Report the current holdings of the user."""
@@ -218,7 +279,7 @@ class Account(BaseModel):
 
     def get_profit_loss(self):
         """Report the user's profit or loss at any point in time."""
-        return self.calculate_profit_loss()
+        return self.calculate_profit_loss(live_prices())
 
     def list_transactions(self):
         """List all transactions made by the user."""
@@ -226,7 +287,10 @@ class Account(BaseModel):
 
     def report(self) -> str:
         """Return a json string representing the account."""
-        portfolio_value = self.calculate_portfolio_value()
+        prices = live_prices()
+        pnl = self.pnl_breakdown(prices)
+        portfolio_value = self.balance + pnl["holdings_value"]
+        pnl = pnl["total"]
         self.portfolio_value_time_series.append(
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), portfolio_value)
         )
@@ -234,9 +298,9 @@ class Account(BaseModel):
         if len(self.portfolio_value_time_series) > MAX_TIMESERIES_POINTS:
             self.portfolio_value_time_series = self.portfolio_value_time_series[-MAX_TIMESERIES_POINTS:]
         self.save()
-        pnl = self.calculate_profit_loss(portfolio_value)
-        # Full, never-trimmed history lives in its own table (see database.read_snapshots).
-        write_snapshot(self.name, portfolio_value, pnl)
+        # The P/L history the dashboard charts lives in its own table (see
+        # database.read_snapshots); snapshots.py and each fill add points too.
+        self.record_snapshot(prices)
         data = self.model_dump()
         data["total_portfolio_value"] = portfolio_value
         data["total_profit_loss"] = pnl

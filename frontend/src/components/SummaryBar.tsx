@@ -9,11 +9,10 @@ interface Props {
   portfolio: PortfolioSummary | null;
 }
 
-/** A trader's unrealized return on the capital they actually put into positions. */
+/** A trader's return on the capital they have put into buys. */
 function traderReturnPct(t: DashboardTrader): number | null {
-  const pnl = t.account.total_profit_loss;
-  const costBasis = t.account.total_portfolio_value - t.account.balance - pnl;
-  return costBasis > 0 ? (pnl / costBasis) * 100 : null;
+  const { total_profit_loss: pnl, invested } = t.account;
+  return invested > 0 ? (pnl / invested) * 100 : null;
 }
 
 export default function SummaryBar({ traders, portfolio }: Props) {

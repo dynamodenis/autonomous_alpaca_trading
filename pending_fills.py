@@ -15,6 +15,7 @@ import time
 import alpaca_exec
 import database
 from accounts import Account
+from prices import live_prices
 from symbols import normalize_symbol
 
 # Stop tracking an order this long after it was placed, whatever its state, so
@@ -49,6 +50,11 @@ def record_fill(account_name: str, side: str, symbol: str, qty: float, price: fl
             "buy" if side.lower() == "buy" else "sell",
             symbol, units, rationale or f"{side} {symbol}", price,
         )
+        try:
+            # Put the trade on the P/L chart right away.
+            account.record_snapshot(live_prices(max_age=0))
+        except Exception as e:  # noqa: BLE001 - the fill itself is already recorded
+            print(f"[fills] P/L snapshot failed for {account_name}: {e}")
         return {"ok": True, "symbol": symbol, "quantity": units, "price": price}
     except Exception as e:  # noqa: BLE001
         print(f"[fills] ledger write failed for {account_name} {side} {symbol}: {e}")
